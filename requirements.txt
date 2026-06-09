@@ -1,0 +1,4 @@
+# Runtime + dev deps for the Sentinel Loop slice.
+# Limited to cryptography and pytest per CLAUDE.md non-negotiable #6.
+cryptography>=42.0
+pytest>=8.0

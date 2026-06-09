@@ -1,0 +1,8 @@
+# Normalize all text to LF in the repo (consistent bytes across Win/macOS/Linux).
+* text=auto eol=lf
+
+# Binary artifacts: never apply EOL or text filters. The ledger and keys are
+# hashed/verified byte-for-byte by verify_ledger.py — mangling would break the chain.
+*.db   binary
+*.pem  binary
+*.key  binary

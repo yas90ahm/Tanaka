@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sentinel-slice"
+version = "0.1.0"
+description = "Sentinel Loop — governance vertical slice (six takeout layers, verifiable receipts)"
+requires-python = ">=3.11"
+# Deps are deliberately limited to cryptography + pytest per CLAUDE.md non-negotiable #6.
+dependencies = [
+    "cryptography>=42.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["sentinel_slice*"]
+
+[tool.pytest.ini_options]
+testpaths = ["sentinel_slice/tests"]
+python_files = ["test_*.py"]
+# Acceptance tests are named after their SPEC number: test_at01_*, test_at02_*, ...
+python_functions = ["test_*"]
