@@ -22,7 +22,38 @@ The slice exists to demonstrate four claims (see `SPEC.md`):
    artifact.
 
 There is **no LLM anywhere in this slice** — the thesis under test is the
-governance path, not the model. The agents that will eventually sit in the
+governance path, not the model.
+
+## What it's for
+
+This is a general **action broker** for AI agents: any consequential thing an
+agent wants to do becomes a declared, scoped *capability* that gets bounded,
+gated, and receipted. The slice ships three to show the range —
+`cap.email.draft_reply.v1` (draft a reply), `cap.docs.summarize.v1` (summarize
+a scoped document), `cap.payment.initiate.v1` (a high-risk, second-admin +
+user-confirmation action). The point is the *shape*: drop in capabilities for
+your problem — read a file from an allowed folder, query a record, call a tool
+— and each one inherits capability-bounding, structural privacy, ephemeral
+execution, the operator console, and a verifiable receipt for free. It fits
+two deployments from one engine: enterprise agents over systems-of-record (the
+Tanaka console), and computer-use agents on a personal machine (consumer mode,
+below).
+
+### Adding a capability
+
+Three steps, no change to the cashier/ledger/chef plumbing:
+
+1. **Descriptor** — drop a `capabilities/<id>.json` declaring `inputs`,
+   `outputs`, `side_effects`, `scope`, `risk_class`, and (optionally)
+   `scoped_input` (which arg holds the namespaced `<owner>/<local>` resource;
+   default `thread_id`), `recommended_max_rate`, `requires_second_admin`,
+   `requires_user_confirmation`.
+2. **Handler** — add one pure `(_resource, source_text) -> output_text`
+   transform to the dispatch table in `chef/chef_main.py`. Deterministic, no
+   network, no model.
+3. **Grant** — allow a role to use it in policy (via the console, or the
+   policy file). Done — it now has bounding, privacy, receipts, simulation,
+   and the kill switch. The agents that will eventually sit in the
 diner seat are **model-agnostic by construction**: anything that can emit the
 order JSON below can use this infrastructure (see *The diner protocol*).
 

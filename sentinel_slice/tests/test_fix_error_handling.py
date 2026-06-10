@@ -48,7 +48,7 @@ def test_chef_exit2_on_non_ed25519_pubkey(tmp_path):
     proc = _chef(rsa_pub, tmp_path, tmp_path / "out")
     # Was exit 1 + TypeError traceback before the fix.
     assert proc.returncode == 2, (proc.stdout, proc.stderr)
-    assert not (tmp_path / "out" / "draft.txt").exists()
+    assert not (tmp_path / "out" / "output.txt").exists()
 
 
 def test_chef_exit2_on_malformed_pubkey_pem(tmp_path):

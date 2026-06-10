@@ -21,6 +21,11 @@ class Capability:
     # confirmation at EXECUTION time (Essay 5's "additional friction"). The
     # cashier still authorizes by policy; this adds a per-action allow/deny.
     requires_user_confirmation: bool = False
+    # v0.5 pluggable capabilities: which args key holds the namespaced
+    # "<owner>/<local>" resource the cashier scope-checks and the chef reads.
+    # Defaults to "thread_id" so existing email capabilities are unchanged; a
+    # docs capability can declare "doc_id", a records one "record_id", etc.
+    scoped_input: str = "thread_id"
 
 
 @dataclass(frozen=True)

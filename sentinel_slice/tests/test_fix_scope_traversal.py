@@ -110,6 +110,6 @@ def test_chef_confines_read_to_owner_dir(tmp_path):
 
     # Confined: exit 4, no draft written, and the victim secret never surfaces.
     assert proc.returncode == 4, (proc.stdout, proc.stderr)
-    assert not (out_dir / "draft.txt").exists()
+    assert not (out_dir / "output.txt").exists()
     assert secret not in proc.stdout
     assert secret not in proc.stderr

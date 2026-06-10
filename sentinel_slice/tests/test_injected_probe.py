@@ -106,7 +106,7 @@ def test_injected_probe_off_menu_is_chained_receipt(tmp_path):
     assert rows[-1].order_id == order.order_id
 
     # No draft was produced — the off-menu order never spawns a chef.
-    assert not (tmp_path / "win" / order.order_id / "draft.txt").exists()
+    assert not (tmp_path / "win" / order.order_id / "output.txt").exists()
 
     # The one-row chain (a pure rejection) still verifies standalone.
     res = _run_verifier(tmp_path / "ledger.db", pem)

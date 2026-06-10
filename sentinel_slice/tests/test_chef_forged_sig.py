@@ -111,7 +111,7 @@ def test_chef_forged_sig(tmp_path):
     proc = _invoke_chef(wire, pem, out_dir)
 
     assert proc.returncode == 3
-    assert not os.path.exists(os.path.join(str(out_dir), "draft.txt"))
+    assert not os.path.exists(os.path.join(str(out_dir), "output.txt"))
     assert not os.path.exists(str(out_dir))
     assert "signature" in proc.stderr.lower()
 
@@ -132,6 +132,6 @@ def test_chef_forged_sig_byteflip(tmp_path):
     proc = _invoke_chef(wire, pem, out_dir)
 
     assert proc.returncode == 3
-    assert not os.path.exists(os.path.join(str(out_dir), "draft.txt"))
+    assert not os.path.exists(os.path.join(str(out_dir), "output.txt"))
     assert not os.path.exists(str(out_dir))
     assert "signature" in proc.stderr.lower()

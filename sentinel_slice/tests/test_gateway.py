@@ -230,7 +230,7 @@ def test_gateway_cli_external_agent_process(tmp_path):
     assert result["receipt"]["result_digest"] == hashlib.sha256(draft).hexdigest()
     assert result["receipt"]["attestation"]["mock"] is True
     # The draft really sits in the window where the response says it does.
-    assert (win / "ord-cli-1" / "draft.txt").read_text(encoding="utf-8") == EXPECTED_DRAFT
+    assert (win / "ord-cli-1" / "output.txt").read_text(encoding="utf-8") == EXPECTED_DRAFT
 
     # The chain the CLI produced verifies standalone.
     vproc = subprocess.run(

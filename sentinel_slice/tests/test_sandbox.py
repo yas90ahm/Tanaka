@@ -121,7 +121,7 @@ def test_run_chef_swaps_backend_via_contract(tmp_path):
             # Behave like a successful chef: write the draft to out_dir.
             import os
             os.makedirs(spec.out_dir, exist_ok=True)
-            with open(os.path.join(spec.out_dir, "draft.txt"), "w",
+            with open(os.path.join(spec.out_dir, "output.txt"), "w",
                       encoding="utf-8", newline="\n") as fh:
                 fh.write("Re: x\n")
             return SandboxResult(returncode=0, stdout="", stderr="")

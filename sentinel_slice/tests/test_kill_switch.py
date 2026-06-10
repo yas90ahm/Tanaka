@@ -94,7 +94,7 @@ def test_paused_capability_rejected_no_chef_no_draft(tmp_path):
     assert rows[-1].ticket_id is None
     assert rows[-1].order_meta["capability_id"] == CAP
     # No draft written.
-    assert not (tmp_path / "win" / order.order_id / "draft.txt").exists()
+    assert not (tmp_path / "win" / order.order_id / "output.txt").exists()
 
 
 def test_unpausing_restores_fulfillment(tmp_path):

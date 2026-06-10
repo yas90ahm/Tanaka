@@ -4,7 +4,7 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 120 passing, 1 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**Tests:** 124 passing, 1 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
 The skip is the ContainerSandbox Docker integration test, which runs only where
 a container runtime is present (not on Windows / minimal CI).
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
@@ -286,6 +286,30 @@ ARCHITECTURE promise literal.
   construction level; the microVM/gVisor *guarantee* is still not demonstrated
   in this repo's CI because it requires Linux+runtime. We do not claim a green
   checkmark for isolation we can't run here.
+
+## v0.5 — pluggable capabilities (no longer email-only)
+
+The chef was hardcoded to one transform; now it's a general action broker.
+
+- **Capability dispatch — BUILT.** `chef_main.py` dispatches on
+  `capability_id` to a per-capability pure transform (`_HANDLERS` table),
+  resolves the scoped resource generically (the single value in scoped_args),
+  and writes a canonical `output.txt`. Unknown capability -> exit 5 (a
+  contract breach; the cashier shouldn't mint such a ticket). The draft_reply
+  transform is byte-identical to v0.1.
+- **`Capability.scoped_input` — BUILT.** Capabilities declare which arg holds
+  their namespaced resource (default `thread_id`); the cashier scope-checks
+  that key. So a docs capability uses `doc_id`, a records one `record_id`, etc.
+  — one scope rule, many capabilities.
+- **Three shipped capabilities** — `cap.email.draft_reply.v1`,
+  `cap.docs.summarize.v1` (extractive, NO model; reads scoped data -> derived
+  artifact, content still never hits the ledger — tested), and
+  `cap.payment.initiate.v1` (high-risk; produces a "NO FUNDS MOVED" request
+  artifact, gated by second-admin + user-confirmation).
+- **Output artifact renamed** `draft.txt` -> `output.txt` (generic per-order
+  output; one file, content varies by capability).
+- **Extension is 3 steps** (descriptor JSON + handler + policy grant), no core
+  changes — documented in README "Adding a capability".
 
 ## STILL mocked / STUB below the console (unchanged)
 

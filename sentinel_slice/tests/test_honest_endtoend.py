@@ -90,7 +90,7 @@ def test_honest_endtoend_fulfilled_and_private(tmp_path):
     draft = loop.read_window_draft(order_id)
     assert isinstance(draft, bytes)
     assert len(draft) > 0
-    assert (tmp_path / "win" / order_id / "draft.txt").is_file()
+    assert (tmp_path / "win" / order_id / "output.txt").is_file()
     assert draft.decode("utf-8") == EXPECTED_DRAFT
 
     # Exactly one FULFILLED receipt, digest-only with a MOCK attestation.

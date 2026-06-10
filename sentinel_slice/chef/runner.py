@@ -37,8 +37,8 @@ CHEF_MAIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chef_main.
 class ChefResult:
     workspace_path: str          # the mkdtemp dir — ALREADY DELETED when returned
     out_dir: str                 # the serving-window dir for this order_id
-    draft_path: str              # <out_dir>/draft.txt
-    draft_bytes: bytes | None    # bytes read back from draft.txt on success, else None
+    draft_path: str              # <out_dir>/output.txt (the order's output artifact)
+    draft_bytes: bytes | None    # bytes read back from output.txt on success, else None
     result_digest: str | None    # sha256(draft_bytes).hexdigest() on success, else None
     receipt: Receipt | None      # FULFILLED on success, else REJECTED/EXECUTION_FAILED
     returncode: int              # the chef subprocess exit code

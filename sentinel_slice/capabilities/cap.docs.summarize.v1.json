@@ -1,0 +1,14 @@
+{
+  "id": "cap.docs.summarize.v1",
+  "name": "Summarize document",
+  "inputs": {"doc_id": "string"},
+  "outputs": {"summary": "text"},
+  "side_effects": "none",
+  "scope": "own_queue",
+  "risk_class": "low",
+  "description": "Return an extractive summary of a document in the acting user's own store. Reads scoped data and returns a derived artifact; the content itself never reaches the cashier or the ledger (only its digest does).",
+  "recommended_max_rate": 30,
+  "requires_second_admin": false,
+  "requires_user_confirmation": false,
+  "scoped_input": "doc_id"
+}

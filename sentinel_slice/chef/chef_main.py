@@ -18,11 +18,13 @@ CLI / argv (see contract §1a):
 
 stdin: a single JSON object — the ticket (see contract §1b).
 
-Exit codes (FROZEN, contract §1d):
-    0  success: draft written to <out_dir>/draft.txt
+Exit codes (contract §1d):
+    0  success: output written to <out_dir>/output.txt
     2  usage error (argc, unparseable/invalid stdin JSON, missing pubkey file)
     3  signature verification failed (bad/forged/wrong-key sig)
     4  scope/path-traversal violation OR fixture file missing
+    5  no handler for the capability_id (v0.5; a contract breach — the cashier
+       should never mint a ticket for a capability the chef can't execute)
 """
 
 import sys
@@ -83,11 +85,15 @@ def main(argv) -> int:
             print("required key not a string: {}".format(key), file=sys.stderr)
             return 2
     scoped_args = t["scoped_args"]
+    # The cashier narrows scope to EXACTLY ONE resource, under the
+    # capability's own key (thread_id / doc_id / ...). The chef is
+    # key-name-agnostic: it requires one string value and reads that.
     if not isinstance(scoped_args, dict):
         print("scoped_args is not an object", file=sys.stderr)
         return 2
-    if not isinstance(scoped_args.get("thread_id"), str):
-        print("scoped_args.thread_id missing or not a string", file=sys.stderr)
+    scoped_values = [v for v in scoped_args.values() if isinstance(v, str)]
+    if len(scoped_args) != 1 or len(scoped_values) != 1:
+        print("scoped_args must hold exactly one string resource", file=sys.stderr)
         return 2
 
     # 3. Load pubkey + VERIFY SIGNATURE. This is the security gate; it MUST
@@ -126,12 +132,12 @@ def main(argv) -> int:
         return 3
     # NOTHING has been read from the kitchen and out_dir does NOT exist yet.
 
-    # 4. Resolve thread_id -> fixture path, with traversal guard.
-    thread_id = scoped_args["thread_id"]
-    if "/" not in thread_id:
+    # 4. Resolve the scoped resource -> fixture path, with traversal guard.
+    resource = scoped_values[0]
+    if "/" not in resource:
         print("path traversal rejected", file=sys.stderr)
         return 4
-    owner, local = thread_id.split("/", 1)
+    owner, local = resource.split("/", 1)
     if owner == "" or local == "":
         print("path traversal rejected", file=sys.stderr)
         return 4
@@ -160,29 +166,85 @@ def main(argv) -> int:
         print("fixture not found", file=sys.stderr)
         return 4
     with open(candidate, "r", encoding="utf-8") as fh:
-        email_text = fh.read()
+        source_text = fh.read()
 
-    # 6. Generate the DETERMINISTIC draft (FROZEN transform).
+    # 6. Dispatch on capability_id to its DETERMINISTIC transform. Adding a
+    #    capability = add a handler here + a descriptor JSON + a policy grant.
+    #    No LLM anywhere — every transform is a pure, auditable function.
+    handler = _HANDLERS.get(t["capability_id"])
+    if handler is None:
+        print("no handler for capability {}".format(t["capability_id"]),
+              file=sys.stderr)
+        return 5
+    output_text = handler(resource, source_text)
+
+    # 7. Create out_dir, write the single output artifact (success-only side
+    #    effect). The filename is the same for every capability.
+    os.makedirs(out_dir, exist_ok=True)
+    output_file = os.path.join(out_dir, "output.txt")
+    with open(output_file, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(output_text)
+
+    # 8. Success.
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Capability handlers — each a PURE (resource_id, source_text) -> output_text
+# transform. Deterministic, no model, no network. This dispatch table is the
+# extension point: a new capability adds one entry here, one descriptor JSON,
+# and one policy grant — nothing in the cashier/ledger/chef plumbing changes.
+# ---------------------------------------------------------------------------
+
+def _handle_draft_reply(resource, source_text):
+    """Draft a reply to an email thread (the original capability; output is
+    byte-identical to v0.1 so existing receipts/tests are unchanged)."""
     subject = "(no subject)"
-    for line in email_text.splitlines():
+    for line in source_text.splitlines():
         if line.startswith("Subject:"):
             subject = line[len("Subject:"):].strip()
             break
-
-    draft_text = (
+    return (
         "Re: {}\n\n"
         "Thank you for your message. A draft reply has been prepared for your review.\n\n"
         "-- Sentinel Loop draft (no send performed)\n"
     ).format(subject)
 
-    # 7. Create out_dir, write draft (success-only side effect).
-    os.makedirs(out_dir, exist_ok=True)
-    draft_file = os.path.join(out_dir, "draft.txt")
-    with open(draft_file, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write(draft_text)
 
-    # 8. Success.
-    return 0
+def _handle_docs_summarize(resource, source_text):
+    """Extractive (NO MODEL) summary of a document: its first non-empty line
+    plus deterministic size stats. Demonstrates 'read scoped data, return a
+    derived artifact' — and the content still never touches the ledger."""
+    lines = source_text.splitlines()
+    first = next((ln.strip() for ln in lines if ln.strip()), "(empty document)")
+    n_lines = len(lines)
+    n_words = len(source_text.split())
+    return (
+        "Summary of {}\n\n"
+        "Opening: {}\n"
+        "Length: {} lines, {} words.\n\n"
+        "-- Sentinel Loop summary (extractive, no model)\n"
+    ).format(resource, first, n_lines, n_words)
+
+
+def _handle_payment_initiate(resource, source_text):
+    """Produce a payment-authorization REQUEST artifact. The slice NEVER moves
+    money; this is a reviewable request only (high-risk capability, gated by
+    second-admin in the console and user-confirmation in consumer mode)."""
+    return (
+        "PAYMENT REQUEST — NO FUNDS MOVED\n\n"
+        "Regarding: {}\n"
+        "This is a request artifact for human authorization. The Sentinel Loop "
+        "slice does not execute payments.\n\n"
+        "-- Sentinel Loop (no side effect performed)\n"
+    ).format(resource)
+
+
+_HANDLERS = {
+    "cap.email.draft_reply.v1": _handle_draft_reply,
+    "cap.docs.summarize.v1": _handle_docs_summarize,
+    "cap.payment.initiate.v1": _handle_payment_initiate,
+}
 
 
 if __name__ == "__main__":

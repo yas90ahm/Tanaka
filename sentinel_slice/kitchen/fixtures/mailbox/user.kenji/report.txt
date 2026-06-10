@@ -1,0 +1,9 @@
+Quarterly Operations Report — Q3
+
+The onboarding pipeline cleared 142 accounts this quarter, up 18% over Q2.
+Mean time-to-activation fell from 9.1 to 7.4 days. Two incidents were logged,
+both resolved within SLA. Headcount is flat; tooling spend rose modestly on
+the new review-queue automation.
+
+Recommendation: hold the current staffing plan and revisit automation ROI at
+the end of Q4.

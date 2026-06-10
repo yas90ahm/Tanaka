@@ -115,12 +115,16 @@ def evaluate_order(
         )
 
     # --- Step 4: args within scope (structural, kitchen-blind) — FLAG B ---
-    # thread_id is namespaced "<owner>/<local>"; scope passes iff owner ==
-    # principal AND local is a single safe path component (no traversal).
-    tid = order.args.get("thread_id") if isinstance(order.args, dict) else None
-    if not isinstance(tid, str) or "/" not in tid:
+    # The capability declares which arg holds its scoped resource
+    # (`scoped_input`, default "thread_id"). That value is namespaced
+    # "<owner>/<local>"; scope passes iff owner == principal AND local is a
+    # single safe path component (no traversal). This is how DIFFERENT
+    # capabilities (email threads, docs, records) reuse one scope rule.
+    scoped_key = capability.scoped_input
+    resource = order.args.get(scoped_key) if isinstance(order.args, dict) else None
+    if not isinstance(resource, str) or "/" not in resource:
         return Decision(accepted=False, reason_code="OUT_OF_SCOPE", scoped_args=None)
-    owner, local = tid.split("/", 1)
+    owner, local = resource.split("/", 1)
     local_unsafe = (
         local == "" or "/" in local or "\\" in local or local in (".", "..")
     )
@@ -133,8 +137,11 @@ def evaluate_order(
             accepted=False, reason_code="RATE_LIMITED", scoped_args=None
         )
 
-    # --- ACCEPT: the narrowed dict is the validated thread_id ONLY (FLAG B) ---
-    return Decision(accepted=True, reason_code=None, scoped_args={"thread_id": tid})
+    # --- ACCEPT: narrowed dict = the validated scoped resource ONLY (FLAG B),
+    # under the capability's own key so the chef knows what it received. ---
+    return Decision(
+        accepted=True, reason_code=None, scoped_args={scoped_key: resource}
+    )
 
 
 def ticket_signable_dict(ticket: Ticket) -> dict:

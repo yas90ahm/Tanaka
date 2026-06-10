@@ -112,7 +112,7 @@ def test_at01_honest(tmp_path, monkeypatch):
     # --- fulfillment ---
     assert res.returncode == 0
     assert os.path.isfile(res.draft_path)
-    assert os.path.basename(res.draft_path) == "draft.txt"
+    assert os.path.basename(res.draft_path) == "output.txt"
 
     draft_bytes = open(res.draft_path, "rb").read()
     assert res.draft_bytes == draft_bytes
