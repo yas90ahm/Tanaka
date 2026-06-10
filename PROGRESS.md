@@ -4,7 +4,7 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 45 passing (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**Tests:** 62 passing (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
 **All 10 acceptance tests pass.** A real run (one honest order + one injected
 probe) is committed as `ledger.db`; `verify_ledger.py ledger.db
 sentinel_slice/keys/cashier_ed25519_public.pem` prints `OK verified=2` and exits 0.
@@ -50,7 +50,7 @@ sentinel_slice/keys/cashier_ed25519_public.pem` prints `OK verified=2` and exits
 
 A multi-agent recall review surfaced 10 findings, all on failure/adversarial
 paths (the happy path the tests cover was clean). All 10 are fixed, each with a
-regression test (`tests/test_fix_*.py`); suite is now 54 passing.
+regression test (`tests/test_fix_*.py`); that pass brought the suite to 54.
 
 - **Cross-tenant scope escape (security) — FIXED.** A crafted
   `thread_id="user.kenji/../victim/secret"` previously passed the cashier
@@ -71,6 +71,40 @@ regression test (`tests/test_fix_*.py`); suite is now 54 passing.
   TypeError/ValueError → exit 1). `verify_ledger` returns usage exit 2 (one-line
   message, no traceback) for a missing/non-PEM/private-key pubkey arg or a db
   lacking a `receipts` table.
+
+## Deployability pass (post-slice audit)
+
+A full-codebase audit confirmed the slice complete and honest, then closed the
+gaps between "all tests pass" and "a stranger can clone and run it". Suite is
+now 62 passing.
+
+- **`gateway.py` — BUILT.** The model-agnostic counter: diner-protocol order
+  JSON in, outcome JSON out (`place_order_json`), plus a stdin/stdout CLI
+  (`python -m sentinel_slice.gateway`) so any external agent process — any
+  model, any language, holding zero credentials — can drive the slice.
+  **FLAGS:** this is the SAME in-process trust boundary the scripted diner
+  uses, exposed as JSON — it is NOT a network boundary and provides NO
+  authentication (FastAPI comes later, per ARCHITECTURE). A malformed order is
+  refused WITHOUT a ledger receipt (no trustworthy order identity to chain); a
+  production gateway would receipt malformed intake under a gateway-assigned
+  identity.
+- **`keygen.py` hardened.** Refuses to overwrite an existing keypair without
+  `--force` (regenerating breaks verification of every ledger signed by the old
+  key — including the committed `ledger.db`); paths are module-relative, so it
+  works from any cwd.
+- **Fresh-clone bootstrap.** `loop.build_default` now fails with an actionable
+  message (run keygen; start a new ledger) instead of a bare traceback when the
+  gitignored private key is absent; it also accepts a `keys_dir` override so
+  tests and external runs stay hermetic. `run_slice` takes an optional ledger
+  path argument.
+- **Packaging.** `[project.scripts]` console entry points (`sentinel-keygen`,
+  `sentinel-run`, `sentinel-verify`, `sentinel-gateway`,
+  `sentinel-policy-form`) and package-data for capabilities/policies/public
+  key/fixtures. `verify_ledger.py` gained an argv wrapper only — it still
+  imports nothing from the package.
+- **`README.md` — BUILT.** Fresh-clone quickstart, the diner protocol (the
+  model-agnostic wire format), the real/mocked table, the essay→module layer
+  map, and the production swap map.
 
 ## Known wrinkles (honest disclosure, not defects)
 

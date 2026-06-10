@@ -17,8 +17,25 @@ dev = [
     "pytest>=8.0",
 ]
 
+[project.scripts]
+sentinel-keygen = "sentinel_slice.keygen:cli"
+sentinel-run = "sentinel_slice.run_slice:cli"
+sentinel-verify = "sentinel_slice.verify_ledger:cli"
+sentinel-gateway = "sentinel_slice.gateway:cli"
+sentinel-policy-form = "sentinel_slice.authoring.policy_form:main"
+
 [tool.setuptools.packages.find]
 include = ["sentinel_slice*"]
+
+[tool.setuptools.package-data]
+# The engine's data files: menu, policies, the committed PUBLIC key, and the
+# cooperative kitchen fixtures. The private key is never packaged.
+sentinel_slice = [
+    "capabilities/*.json",
+    "policies/*.json",
+    "keys/*_public.pem",
+    "kitchen/fixtures/mailbox/**/*.txt",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["sentinel_slice/tests"]

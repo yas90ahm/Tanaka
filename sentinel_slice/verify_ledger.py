@@ -151,5 +151,10 @@ def main(argv):
     return 0
 
 
+def cli():
+    """Console-script entry point. Still standalone: no package imports."""
+    sys.exit(main(sys.argv))
+
+
 if __name__ == "__main__":
     sys.exit(main(sys.argv))

@@ -106,17 +106,35 @@ class SentinelLoop:
         return self.ledger.read_all()
 
 
-def build_default(ledger_db_path: str, *, window_root: str | None = None) -> SentinelLoop:
-    """Construct a SentinelLoop wired to the committed cashier key and the
-    real services. This factory is the ONLY place the private PEM is read."""
+def build_default(
+    ledger_db_path: str,
+    *,
+    window_root: str | None = None,
+    keys_dir: str | None = None,
+) -> SentinelLoop:
+    """Construct a SentinelLoop wired to the cashier key in `keys_dir`
+    (default: the committed sentinel_slice/keys) and the real services. This
+    factory is the ONLY place the private PEM is read."""
     SENTINEL_DIR = os.path.dirname(os.path.abspath(__file__))
+    if keys_dir is None:
+        keys_dir = os.path.join(SENTINEL_DIR, "keys")
+    keys_dir = os.path.abspath(keys_dir)
 
-    private_key_path = os.path.join(SENTINEL_DIR, "keys", "cashier_ed25519_private.pem")
+    private_key_path = os.path.join(keys_dir, "cashier_ed25519_private.pem")
+    if not os.path.isfile(private_key_path):
+        # Fresh clones do not ship the private key (it is gitignored).
+        raise FileNotFoundError(
+            "cashier private key not found at {}.\n"
+            "Generate a keypair first:  python -m sentinel_slice.keygen\n"
+            "NOTE: a fresh keypair cannot verify receipts signed by an older "
+            "key - start a new ledger db (see README, 'Fresh clone "
+            "bootstrap').".format(private_key_path)
+        )
     with open(private_key_path, "rb") as f:
         private_key = serialization.load_pem_private_key(f.read(), password=None)
 
     public_key_pem_path = os.path.abspath(
-        os.path.join(SENTINEL_DIR, "keys", "cashier_ed25519_public.pem")
+        os.path.join(keys_dir, "cashier_ed25519_public.pem")
     )
     fixtures_root = os.path.abspath(
         os.path.join(SENTINEL_DIR, "kitchen", "fixtures", "mailbox")
