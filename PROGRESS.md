@@ -4,7 +4,7 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 148 passing, 1 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**Tests:** 159 passing, 1 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
 The skip is the ContainerSandbox Docker integration test, which runs only where
 a container runtime is present (not on Windows / minimal CI).
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
@@ -387,6 +387,29 @@ not code.
 - **HONEST LINE:** text/formatting behaviors are no-code and safe for non-
   technical authors; behaviors with NEW side effects or integrations (move
   money, call an API) still require an engineer and security review.
+
+## v0.9 — Sentinel as an MCP gateway
+
+The bridge to real agents. The agent speaks plain MCP; every tool call is
+governed and receipted — adding the two things MCP itself lacks.
+
+- **`mcp_gateway.py` — BUILT.** Minimal MCP server, stdlib JSON-RPC 2.0 over
+  newline-delimited stdio: `initialize`, `tools/list`, `tools/call`, `ping`,
+  notifications. Each enabled capability becomes a tool; a `tools/call` is
+  turned into a Sentinel Order, run through the cashier (scope/role/rate/
+  replay) and the ephemeral chef, and recorded. Configurable principal/role
+  (the identity the agent acts as). Entry point `sentinel-mcp`.
+- **What it adds over MCP:** (1) PER-CALL governance — a call is checked on its
+  actual arguments, not just "is this tool allowed" (out-of-scope / ungranted /
+  rate-limited calls are refused; tested); (2) VERIFIABLE RECEIPTS — every
+  call, fulfilled or refused, leaves a signed chained receipt (a refused call
+  is the money artifact). The chain a gateway session produces verifies
+  standalone (tested). Verified live over real stdio.
+- **FLAGS:** minimal subset — no resources/prompts/sampling. It is the gateway
+  pattern (governance in front of MCP), not full MCP spec coverage. It does not
+  hold third-party credentials or run real integrations — those (and packaging
+  as an installable app + on-device prompts) are the remaining work between this
+  and a consumer product.
 
 ## STILL mocked / STUB below the console (unchanged)
 

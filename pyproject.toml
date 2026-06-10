@@ -35,6 +35,7 @@ sentinel-gateway = "sentinel_slice.gateway:cli"
 sentinel-inspect = "sentinel_slice.inspector:cli"
 sentinel-drill = "sentinel_slice.curriculum.drill:cli"
 sentinel-console = "sentinel_slice.console.server:cli"
+sentinel-mcp = "sentinel_slice.mcp_gateway:cli"
 sentinel-policy-form = "sentinel_slice.authoring.policy_form:main"
 
 [tool.setuptools.packages.find]

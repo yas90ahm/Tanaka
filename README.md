@@ -308,6 +308,41 @@ the drill detects drift, which is the reason the curriculum loop exists. The
 probe set is fixed in code: it proves the curriculum *slot*; the signed,
 layered, continuously updated curriculum is a STUB.
 
+## Sentinel as an MCP gateway
+
+MCP is how an agent (Claude) connects to tools, and its client already does
+coarse "allow this tool?" prompts. What MCP does **not** do: check each call's
+*arguments* (scope, rate, replay), or leave a *verifiable receipt*. Sentinel
+rides on MCP's transport and adds exactly those.
+
+```sh
+python -m sentinel_slice.mcp_gateway --ledger my.db --principal user.kenji --role account_manager
+```
+
+It's a minimal MCP server (stdlib JSON-RPC 2.0 over stdio: `initialize` /
+`tools/list` / `tools/call`). Each enabled capability becomes a tool; every
+`tools/call` is turned into a Sentinel order, run through the cashier, executed
+by the ephemeral chef, and recorded:
+
+```jsonc
+// tools/call draft_reply on the user's own thread -> governed + receipted
+{"id":2,"result":{"content":[
+  {"type":"text","text":"Re: Acme Corp Q3 onboarding\n\nThank you for your message..."},
+  {"type":"text","text":"[Sentinel receipt rcpt-… | status FULFILLED | result digest b81a1d7c… | verifiable in the ledger]"}
+],"isError":false}}
+
+// tools/call draft_reply on SOMEONE ELSE'S thread -> refused, and still receipted
+{"id":3,"result":{"content":[
+  {"type":"text","text":"Refused by policy: OUT_OF_SCOPE. A signed rejection receipt was recorded (rcpt-…)."}
+],"isError":true}}
+```
+
+That second case is the point: MCP's "always allow draft_reply" would let the
+agent draft on *any* thread; here the same tool call is refused on its
+arguments, and the refusal is tamper-evident evidence. It works for both
+shapes — an enterprise fleet and a single user's Claude — because the agent
+just speaks plain MCP. (Minimal subset: no resources/prompts/sampling yet.)
+
 ## The operator console (Tanaka)
 
 The control surface that lets a non-engineer compliance officer author agent
