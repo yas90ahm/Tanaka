@@ -1,0 +1,58 @@
+name: sandbox-isolation
+
+# Proves the chef sandbox GUARANTEE (not just the contract): on a Linux runner
+# it builds the chef image, runs a real chef inside a hardened container, and —
+# in a second pass — under gVisor (runsc). This is the job that turns "sandbox
+# is a subprocess contract" into "sandbox is a real isolation boundary."
+#
+# Kept separate from ci.yml because it needs Docker + gVisor and is Linux-only.
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  container-isolation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Build the chef image
+        run: docker build -t sentinel-chef .
+
+      - name: Run a real chef in a hardened container (no gVisor)
+        env:
+          SENTINEL_TEST_CONTAINER: "1"
+          SENTINEL_SANDBOX_IMAGE: "sentinel-chef"
+        run: python -m pytest sentinel_slice/tests/test_sandbox.py -q
+
+      - name: Install gVisor (runsc)
+        run: |
+          set -e
+          (
+            ARCH=$(uname -m)
+            URL="https://storage.googleapis.com/gvisor/releases/release/latest/${ARCH}"
+            wget --quiet "${URL}/runsc" "${URL}/runsc.sha512" \
+                 "${URL}/containerd-shim-runsc-v1" "${URL}/containerd-shim-runsc-v1.sha512"
+            sha512sum -c runsc.sha512 -c containerd-shim-runsc-v1.sha512
+            sudo mv runsc containerd-shim-runsc-v1 /usr/local/bin/
+            sudo chmod a+rx /usr/local/bin/runsc /usr/local/bin/containerd-shim-runsc-v1
+          )
+          sudo /usr/local/bin/runsc install
+          sudo systemctl reload docker || sudo systemctl restart docker
+
+      - name: Run the same chef under gVisor (runsc)
+        env:
+          SENTINEL_TEST_CONTAINER: "1"
+          SENTINEL_SANDBOX_IMAGE: "sentinel-chef"
+          SENTINEL_SANDBOX_RUNTIME: "runsc"
+        run: python -m pytest sentinel_slice/tests/test_sandbox.py -q

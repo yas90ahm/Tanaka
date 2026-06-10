@@ -13,6 +13,7 @@ what run_chef uses). Here we pin:
   with Python + cryptography.
 """
 
+import os
 import shutil
 import uuid
 from pathlib import Path
@@ -66,6 +67,7 @@ def test_container_command_is_hardened_and_exact(tmp_path):
         "--pids-limit", "64",
         "--memory", "256m",
         "--user", "65534:65534",
+        "-e", "PYTHONDONTWRITEBYTECODE=1",
         "--runtime", "runsc",
         "-v", "/host/chef_main.py:/chef/chef_main.py:ro",
         "-v", "/host/pub.pem:/chef/pubkey.pem:ro",
@@ -145,13 +147,56 @@ def test_run_chef_swaps_backend_via_contract(tmp_path):
     reason="no container runtime on PATH (expected on Windows / minimal CI); "
            "ContainerSandbox isolation is real only on Linux + Docker (+ gVisor)",
 )
-def test_container_real_run_requires_image(tmp_path):
-    """Integration smoke: only runs where Docker exists. We don't assume the
-    chef image is built, so we accept either a successful run or a clean
-    nonzero (e.g. image missing) — never an exception from our code."""
+def test_container_runtime_present_builds_command(tmp_path):
+    """Smoke: where Docker exists, the backend reports available and builds a
+    docker command. (The full real run is the env-gated test below.)"""
     sb = ContainerSandbox()
     assert sb.is_available() is True
-    # Construction must not raise; a real run may fail on a missing image,
-    # which is a returncode, not a crash in our layer.
-    cmd = sb.build_command(_spec(tmp_path))
-    assert cmd[0] == "docker"
+    assert sb.build_command(_spec(tmp_path))[0] == "docker"
+
+
+@pytest.mark.skipif(
+    os.environ.get("SENTINEL_TEST_CONTAINER") != "1",
+    reason="real container run: set SENTINEL_TEST_CONTAINER=1 (+ build the "
+           "chef image, optionally install gVisor). The Linux CI job does "
+           "this; it proves the sandbox GUARANTEE, not just the contract.",
+)
+def test_container_real_chef_run_produces_signed_receipt(tmp_path):
+    """THE PROOF: run a real chef inside a hardened container (optionally under
+    gVisor) through run_chef, and assert it produced the exact draft + a
+    FULFILLED receipt — i.e. the isolated backend is functionally identical to
+    the subprocess one, just contained. Configured entirely by env so it runs
+    only where a runtime + image exist:
+        SENTINEL_SANDBOX_IMAGE  (default 'sentinel-chef')
+        SENTINEL_SANDBOX_RUNTIME (e.g. 'runsc' for gVisor; unset = host)
+    """
+    image = os.environ.get("SENTINEL_SANDBOX_IMAGE", "sentinel-chef")
+    runtime = os.environ.get("SENTINEL_SANDBOX_RUNTIME") or None
+    # Map the container user to the host uid so writes to the bind-mounted
+    # window dir are readable back by the test runner.
+    uid_gid = "{}:{}".format(os.getuid(), os.getgid())  # POSIX-only; CI is Linux
+
+    priv = Ed25519PrivateKey.generate()
+    pub = tmp_path / "pub.pem"
+    pub.write_bytes(priv.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo))
+    ledger = Ledger(str(tmp_path / "ledger.db"), priv)
+
+    order = Order(order_id="ord-" + uuid.uuid4().hex, principal="user.kenji",
+                  role="account_manager", capability_id="cap.email.draft_reply.v1",
+                  args={"thread_id": "user.kenji/t-001"},
+                  nonce="n-" + uuid.uuid4().hex, ts="2026-06-10T00:00:00+00:00")
+    outcome = process_order(order, menu=load_catalog(), policy_set=load_policy_set(),
+                            store=CashierStore(), ledger=ledger, private_key=priv,
+                            spawn=None)
+    assert outcome.accepted
+
+    sandbox = ContainerSandbox(runtime=runtime, image=image, user=uid_gid)
+    res = run_chef(outcome.ticket, ledger=ledger, public_key_pem_path=str(pub),
+                   fixtures_root=str(FIXTURES_ROOT), attestor=MockAttestor(),
+                   window_root=str(tmp_path / "win"), sandbox=sandbox)
+
+    assert res.returncode == 0, res.stderr
+    assert res.receipt.status == "FULFILLED"
+    assert res.draft_bytes.decode("utf-8").startswith("Re: Acme Corp Q3 onboarding")

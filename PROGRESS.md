@@ -282,10 +282,16 @@ ARCHITECTURE promise literal.
   microVM backend slots in behind the same `run()` — this is the seam that
   turns "sandbox is a contract" into "sandbox is a guarantee" without changing
   a type signature.
-- **HONEST STATUS:** the seam and a real backend exist and are tested at the
-  construction level; the microVM/gVisor *guarantee* is still not demonstrated
-  in this repo's CI because it requires Linux+runtime. We do not claim a green
-  checkmark for isolation we can't run here.
+- **HONEST STATUS (updated v0.5):** the seam and a real backend exist; command
+  construction is unit-tested exactly. The microVM/gVisor *guarantee* is now
+  actually DEMONSTRATED — but on Linux, not here. `Dockerfile` builds the chef
+  image; the `sandbox-isolation` CI job (`.github/workflows/sandbox.yml`) runs
+  a real chef in the hardened container AND under gVisor (runsc), asserting the
+  same signed FULFILLED receipt as the subprocess backend. On Windows/locally
+  that run is env-gated and skips (set `SENTINEL_TEST_CONTAINER=1` to run it).
+  We still don't fake a green checkmark on this Windows box — but the proof
+  exists and runs where it can (Linux CI). Firecracker slots in behind the
+  same `run()`.
 
 ## v0.5 — pluggable capabilities (no longer email-only)
 

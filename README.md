@@ -368,11 +368,19 @@ The chef runs behind a swappable `Sandbox` interface (`chef/sandbox.py`):
 - `ContainerSandbox` — runs the chef in a hardened OCI container
   (`--network none`, `--cap-drop ALL`, read-only rootfs, non-root,
   `--pids-limit`, no-new-privileges), optionally under **gVisor**
-  (`--runtime=runsc`) for a real user-space-kernel isolation boundary. This is
-  genuine isolation **when run on Linux with Docker (+ gVisor)**. It is **not
-  exercised on Windows / in this repo's CI** — its command construction is
-  tested exactly, and an integration test runs only where a container runtime
-  is available. Firecracker microVMs slot in behind the same interface.
+  (`--runtime=runsc`) for a real user-space-kernel isolation boundary.
+
+  This is genuine isolation, and it is **actually exercised** — not just
+  asserted. The `sandbox-isolation` GitHub Actions job (`.github/workflows/
+  sandbox.yml`) builds the chef image (`Dockerfile`), runs a real chef inside
+  the hardened container, then **re-runs it under gVisor (runsc)**, asserting
+  it produces the same signed FULFILLED receipt as the subprocess backend —
+  just contained. Locally / on Windows the heavy run is env-gated and skips;
+  set `SENTINEL_TEST_CONTAINER=1` (with a built `sentinel-chef` image, and
+  `SENTINEL_SANDBOX_RUNTIME=runsc` for gVisor) to run it yourself. The command
+  construction is unit-tested exactly regardless. Firecracker microVMs slot in
+  behind the same `run()` — this is the seam that turns "sandbox is a
+  contract" into "sandbox is a guarantee" without changing a type signature.
 
 ## Layer map (essays → code)
 

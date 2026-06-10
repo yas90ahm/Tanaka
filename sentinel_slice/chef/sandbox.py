@@ -89,12 +89,17 @@ class ContainerSandbox:
     """
 
     def __init__(self, *, runtime=None, image="python:3.12-slim",
-                 docker="docker", pids_limit=64, memory="256m") -> None:
+                 docker="docker", pids_limit=64, memory="256m",
+                 user="65534:65534") -> None:
         self._runtime = runtime          # e.g. "runsc" for gVisor; None = host default
         self._image = image
         self._docker = docker
         self._pids_limit = pids_limit
         self._memory = memory
+        # Run as a non-root uid:gid. Default nobody:nogroup for max restriction;
+        # override to a uid that owns the bind-mounted window dir when the host
+        # must read the output back (e.g. CI passes the runner's own uid).
+        self._user = user
 
     def is_available(self) -> bool:
         """True only if the container runtime binary is on PATH. The actual
@@ -112,7 +117,8 @@ class ContainerSandbox:
         cmd += ["--read-only"]                  # read-only root filesystem
         cmd += ["--pids-limit", str(self._pids_limit)]
         cmd += ["--memory", self._memory]
-        cmd += ["--user", "65534:65534"]        # nobody:nogroup, non-root
+        cmd += ["--user", self._user]           # non-root
+        cmd += ["-e", "PYTHONDONTWRITEBYTECODE=1"]  # ro rootfs: don't try .pyc
         if self._runtime:
             cmd += ["--runtime", self._runtime]  # gVisor (runsc) etc.
         # Mounts: code + inputs read-only, the serving window read-write, and a
