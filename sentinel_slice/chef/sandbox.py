@@ -1,0 +1,144 @@
+"""Sandbox backends — the containment seam behind the chef.
+
+ARCHITECTURE promised that the chef's execution environment is a swap behind a
+contract whose replacement changes no type signature. This module makes that
+literal: `run_chef` talks to a `Sandbox`, and the backend is interchangeable.
+
+Backends, weakest to strongest:
+
+- `SubprocessSandbox` (default) — a fresh OS subprocess. Combined with the
+  chef's network-free import closure and workspace deletion, this proves the
+  CONTRACT the real system must honor. It is NOT an isolation GUARANTEE: it
+  does not contain a hostile chef. (Same honesty as SPEC's "sandbox" flag.)
+
+- `ContainerSandbox` — runs the chef inside a hardened OCI container
+  (no network, all capabilities dropped, read-only rootfs, non-root,
+  pid-limited, no-new-privileges), optionally under gVisor (`runtime="runsc"`)
+  for a real user-space-kernel isolation boundary — the "Agent Sandbox / gVisor"
+  layer the essays name. This is genuine isolation WHEN RUN on Linux with a
+  container runtime (+ gVisor). It is NOT exercised on non-Linux / no-runtime
+  hosts: its command CONSTRUCTION is unit-tested exactly, and the integration
+  path runs only where `is_available()` is true. A Firecracker microVM backend
+  would slot in here behind the same `run()` signature.
+
+No backend here imports anything heavy at module load; `ContainerSandbox`
+shells out to the runtime binary only when actually run.
+"""
+
+import shutil
+import subprocess
+import sys
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class SandboxResult:
+    """The minimal result `run_chef` needs from any backend: the chef's exit
+    code and captured streams. The draft itself is read back from the serving
+    window by the runner, not returned here."""
+    returncode: int
+    stdout: str
+    stderr: str
+
+
+@dataclass(frozen=True)
+class SandboxSpec:
+    """Everything a backend needs to run one chef invocation. Paths are host
+    paths; a container backend maps them into the guest. `argv_after_program`
+    are the chef's CLI args (pubkey, fixtures_root, out_dir) — note a container
+    backend rewrites these to the IN-CONTAINER paths it mounts them at."""
+    chef_main: str          # path to chef_main.py on the host
+    pubkey_path: str        # cashier public key PEM (read-only input)
+    fixtures_root: str      # kitchen fixtures root (read-only input)
+    out_dir: str            # serving-window dir for this order (read-write)
+    workspace: str          # ephemeral cwd (destroyed by the runner)
+    stdin: str              # the signed ticket JSON on stdin
+
+
+class SubprocessSandbox:
+    """Default backend: a fresh subprocess. Contract, not guarantee."""
+
+    def run(self, spec: SandboxSpec) -> SandboxResult:
+        proc = subprocess.run(
+            [sys.executable, spec.chef_main, spec.pubkey_path,
+             spec.fixtures_root, spec.out_dir],
+            input=spec.stdin,
+            capture_output=True,
+            text=True,
+            cwd=spec.workspace,
+        )
+        return SandboxResult(proc.returncode, proc.stdout, proc.stderr)
+
+
+# In-container mount points for ContainerSandbox (fixed, read-only vs rw).
+_GUEST_CHEF = "/chef/chef_main.py"
+_GUEST_PUBKEY = "/chef/pubkey.pem"
+_GUEST_FIXTURES = "/kitchen"
+_GUEST_OUT = "/window"
+
+
+class ContainerSandbox:
+    """Hardened container backend, optionally gVisor.
+
+    REAL isolation when run on Linux with a container runtime (+ gVisor). Not
+    run on hosts where `is_available()` is False (e.g. Windows without Docker);
+    `build_command` is pure and unit-tested so the security-relevant flags are
+    verified regardless of whether a runtime is present here.
+
+    The image must contain Python + cryptography to run the standalone chef.
+    """
+
+    def __init__(self, *, runtime=None, image="python:3.12-slim",
+                 docker="docker", pids_limit=64, memory="256m") -> None:
+        self._runtime = runtime          # e.g. "runsc" for gVisor; None = host default
+        self._image = image
+        self._docker = docker
+        self._pids_limit = pids_limit
+        self._memory = memory
+
+    def is_available(self) -> bool:
+        """True only if the container runtime binary is on PATH. The actual
+        run still needs the daemon up and the image pulled."""
+        return shutil.which(self._docker) is not None
+
+    def build_command(self, spec: SandboxSpec) -> list[str]:
+        """Construct the hardened run argv. PURE — no side effects — so the
+        isolation flags can be asserted exactly in a test."""
+        cmd = [self._docker, "run", "--rm", "-i"]
+        # Isolation hardening:
+        cmd += ["--network", "none"]            # no network reachability
+        cmd += ["--cap-drop", "ALL"]            # drop all Linux capabilities
+        cmd += ["--security-opt", "no-new-privileges"]
+        cmd += ["--read-only"]                  # read-only root filesystem
+        cmd += ["--pids-limit", str(self._pids_limit)]
+        cmd += ["--memory", self._memory]
+        cmd += ["--user", "65534:65534"]        # nobody:nogroup, non-root
+        if self._runtime:
+            cmd += ["--runtime", self._runtime]  # gVisor (runsc) etc.
+        # Mounts: code + inputs read-only, the serving window read-write, and a
+        # writable tmpfs for the ephemeral cwd (rootfs is read-only).
+        cmd += ["-v", "{}:{}:ro".format(spec.chef_main, _GUEST_CHEF)]
+        cmd += ["-v", "{}:{}:ro".format(spec.pubkey_path, _GUEST_PUBKEY)]
+        cmd += ["-v", "{}:{}:ro".format(spec.fixtures_root, _GUEST_FIXTURES)]
+        cmd += ["-v", "{}:{}".format(spec.out_dir, _GUEST_OUT)]
+        cmd += ["--tmpfs", "/work"]
+        cmd += ["-w", "/work"]
+        cmd += [self._image]
+        # The chef, with IN-CONTAINER paths.
+        cmd += ["python", _GUEST_CHEF, _GUEST_PUBKEY, _GUEST_FIXTURES, _GUEST_OUT]
+        return cmd
+
+    def run(self, spec: SandboxSpec) -> SandboxResult:
+        if not self.is_available():
+            raise RuntimeError(
+                "container runtime {!r} not found on PATH; ContainerSandbox "
+                "needs Linux + a container runtime (+ gVisor for runsc).".format(
+                    self._docker)
+            )
+        proc = subprocess.run(
+            self.build_command(spec),
+            input=spec.stdin,
+            capture_output=True,
+            text=True,
+        )
+        return SandboxResult(proc.returncode, proc.stdout, proc.stderr)

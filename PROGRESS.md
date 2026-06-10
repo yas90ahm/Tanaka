@@ -4,7 +4,9 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 115 passing (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**Tests:** 120 passing, 1 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+The skip is the ContainerSandbox Docker integration test, which runs only where
+a container runtime is present (not on Windows / minimal CI).
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
 v0.1 run (one honest order + one injected probe) PLUS a v0.2-format run
 appended on the SAME unbroken chain (schema evolution by append, never
@@ -255,6 +257,35 @@ irreversible actions hit a human gate.
   agent is FORCED through the broker. On a real computer that requires the
   containment layer (see sandbox backends below); the gate is the brain, the
   sandbox is the body.
+
+## v0.4 — sandbox backends (the containment seam)
+
+The chef's execution environment is now a swap behind a contract, making the
+ARCHITECTURE promise literal.
+
+- **`chef/sandbox.py` — BUILT.** `Sandbox` contract (`SandboxSpec` ->
+  `SandboxResult`); `run_chef` talks to it. Default `SubprocessSandbox` =
+  the prior behavior exactly (whole suite regression-green; AT01's
+  one-process-spawn assertion now verified through the backend).
+- **`SubprocessSandbox` — the CONTRACT, not a guarantee** (unchanged honesty):
+  fresh subprocess + network-free import closure + workspace deletion. Does
+  not contain a hostile chef.
+- **`ContainerSandbox` — REAL isolation backend (Linux + container runtime).**
+  Builds a hardened OCI `run` (`--network none`, `--cap-drop ALL`,
+  `--read-only`, non-root `65534`, `--pids-limit`, `no-new-privileges`,
+  read-only code/inputs, read-write window, tmpfs cwd), optionally under
+  **gVisor** (`runtime="runsc"`) — the user-space-kernel boundary the essays
+  name. **NOT exercised on this platform:** the command CONSTRUCTION is
+  asserted exactly by unit test, and the real container run is an
+  availability-gated integration test that SKIPS without a runtime (e.g.
+  Windows). It needs an image carrying Python + cryptography. A Firecracker
+  microVM backend slots in behind the same `run()` — this is the seam that
+  turns "sandbox is a contract" into "sandbox is a guarantee" without changing
+  a type signature.
+- **HONEST STATUS:** the seam and a real backend exist and are tested at the
+  construction level; the microVM/gVisor *guarantee* is still not demonstrated
+  in this repo's CI because it requires Linux+runtime. We do not claim a green
+  checkmark for isolation we can't run here.
 
 ## STILL mocked / STUB below the console (unchanged)
 

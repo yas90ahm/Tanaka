@@ -23,6 +23,7 @@ from sentinel_slice.cashier.engine import process_order
 from sentinel_slice.cashier.policy import load_policy_set
 from sentinel_slice.cashier.store import CashierStore
 from sentinel_slice.chef import runner as runner_mod
+from sentinel_slice.chef import sandbox as sandbox_mod
 from sentinel_slice.chef.runner import CHEF_MAIN, run_chef
 from sentinel_slice.attestor.mock import MockAttestor
 from sentinel_slice.ledger.receipts import Ledger
@@ -86,15 +87,17 @@ def test_at01_honest(tmp_path, monkeypatch):
     assert outcome.accepted is True
     ticket = outcome.ticket
 
-    # Count chef-process spawns by wrapping subprocess.run inside the runner.
+    # Count chef-process spawns by wrapping subprocess.run inside the sandbox
+    # backend (the default SubprocessSandbox is where the chef process is now
+    # spawned, behind the runner's Sandbox seam).
     spawn_calls = {"n": 0}
-    real_run = runner_mod.subprocess.run
+    real_run = sandbox_mod.subprocess.run
 
     def counting_run(*args, **kwargs):
         spawn_calls["n"] += 1
         return real_run(*args, **kwargs)
 
-    monkeypatch.setattr(runner_mod.subprocess, "run", counting_run)
+    monkeypatch.setattr(sandbox_mod.subprocess, "run", counting_run)
 
     attestor = MockAttestor()
     res = run_chef(
@@ -157,7 +160,7 @@ def test_at01_honest(tmp_path, monkeypatch):
     # subprocess.run is a shared module attribute; restore it now so the
     # verifier invocation below is NOT counted as a chef spawn.
     assert spawn_calls["n"] == 1
-    monkeypatch.setattr(runner_mod.subprocess, "run", real_run)
+    monkeypatch.setattr(sandbox_mod.subprocess, "run", real_run)
 
     # --- verifier over the one-row chain ---
     proc = subprocess.run(

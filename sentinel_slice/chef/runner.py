@@ -19,14 +19,13 @@ import base64
 import hashlib
 import os
 import shutil
-import subprocess
-import sys
 import tempfile
 import uuid
 from dataclasses import dataclass
 
 from sentinel_slice.spine.types import Receipt, Ticket
 from sentinel_slice.ledger.receipts import Ledger
+from sentinel_slice.chef.sandbox import SandboxSpec, SubprocessSandbox
 from sentinel_slice.window import serving
 
 
@@ -55,6 +54,7 @@ def run_chef(
     attestor,
     window_root: str | None = None,
     order_meta: dict | None = None,
+    sandbox=None,
 ) -> ChefResult:
     """Spawn the chef subprocess on `ticket`, returning a ChefResult.
 
@@ -64,7 +64,13 @@ def run_chef(
     with no draft): append a REJECTED/EXECUTION_FAILED receipt so the
     cashier-authorized order still leaves an auditable ledger row (SPEC claim 4),
     and surface failure via returncode + receipt. Never raises on a chef
-    failure. The ephemeral workspace is destroyed on EVERY path."""
+    failure. The ephemeral workspace is destroyed on EVERY path.
+
+    `sandbox` selects the execution backend (default SubprocessSandbox — the
+    contract). A ContainerSandbox(runtime="runsc") gives a real isolation
+    guarantee on Linux+gVisor behind this same call; see chef/sandbox.py."""
+    if sandbox is None:
+        sandbox = SubprocessSandbox()
     workspace = tempfile.mkdtemp(prefix="chef_ws_")
     try:
         out_dir = serving.window_dir(ticket.order_id, window_root)
@@ -81,13 +87,14 @@ def run_chef(
         import json
         payload = json.dumps(wire)
 
-        proc = subprocess.run(
-            [sys.executable, CHEF_MAIN, public_key_pem_path, fixtures_root, out_dir],
-            input=payload,
-            capture_output=True,
-            text=True,
-            cwd=workspace,
-        )
+        proc = sandbox.run(SandboxSpec(
+            chef_main=CHEF_MAIN,
+            pubkey_path=public_key_pem_path,
+            fixtures_root=fixtures_root,
+            out_dir=out_dir,
+            workspace=workspace,
+            stdin=payload,
+        ))
 
         # Success requires BOTH a zero exit AND a readable draft. A chef that
         # exits 0 without a draft is handled as an execution failure below (so
