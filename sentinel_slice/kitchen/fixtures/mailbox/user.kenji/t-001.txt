@@ -1,0 +1,12 @@
+From: Dana Okoro <dana@acme.test>
+To: Kenji Tanaka <kenji@firm.test>
+Subject: Acme Corp Q3 onboarding
+Date: Mon, 08 Jun 2026 14:22:00 +0000
+
+Hi Kenji,
+
+Following up on the Acme Corp Q3 onboarding. Could you confirm the kickoff
+date and the list of stakeholders for the review queue?
+
+Thanks,
+Dana
