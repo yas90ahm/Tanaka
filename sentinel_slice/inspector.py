@@ -83,6 +83,13 @@ REASON_RULES = {
         "authorized order(s) whose chef failed to produce a result - "
         "investigate the kitchen, not the diner.",
     ),
+    "CAPABILITY_PAUSED": (
+        "low",
+        "PAUSED_CAPABILITY_HITS",
+        "order(s) for a capability the operator has PAUSED (kill switch) - "
+        "expected traffic against a deliberate pause, not an attack in "
+        "itself; confirm the pause is still intended.",
+    ),
 }
 
 

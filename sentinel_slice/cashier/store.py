@@ -33,6 +33,13 @@ class CashierStore:
         self._history: dict[tuple[str, str], list[float]] = {}
 
     # ---- nonce: single-use ----
+    def nonce_is_spent(self, nonce: str) -> bool:
+        """READ-ONLY: report whether `nonce` has already been registered,
+        WITHOUT registering it. Used by the pure `evaluate_order` (and the
+        console's Simulate) so a verdict can be computed with zero state
+        change. The mutating check-and-register is `nonce_seen` below."""
+        return nonce in self._seen_nonces
+
     def nonce_seen(self, nonce: str) -> bool:
         """Check-and-register in one atomic call.
 

@@ -10,6 +10,13 @@ class Capability:
     side_effects: str
     scope: str
     risk_class: str
+    # v0.3: advisory metadata the Tanaka console reads to coach the operator
+    # and gate sensitive changes. These are INPUTS TO THE CONSOLE, not new
+    # enforcement — the cashier pipeline is unchanged. Optional in the JSON;
+    # absent -> the conservative defaults below.
+    description: str = ""
+    recommended_max_rate: int | None = None   # console warns above this
+    requires_second_admin: bool = False        # publish needs a 2nd approver
 
 
 @dataclass(frozen=True)

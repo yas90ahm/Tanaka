@@ -4,7 +4,7 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 76 passing (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**Tests:** 93 passing (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
 v0.1 run (one honest order + one injected probe) PLUS a v0.2-format run
 appended on the SAME unbroken chain (schema evolution by append, never
@@ -139,6 +139,43 @@ now 62 passing.
   signed, layered (platform/industry/operator), continuously updated,
   randomized scheduling, governed supply chain — is NOT built and stays a
   STUB. No LLM; probes are deterministic Orders.
+
+## v0.3 phase 1 — Tanaka console engine seams (UI not built yet)
+
+Groundwork for the operator console (full scope in `CONSOLE_SPEC.md`). This
+phase is engine-only: no UI, no HTTP yet.
+
+- **`evaluate_order` — BUILT (pure).** The five-step pipeline is now a pure
+  function over (order, menu, policy_set, store): read-only store access
+  (`store.nonce_is_spent` added), no ledger, no signing, no spawn, no nonce
+  mutation. `process_order` is rebuilt to call it then do the I/O; all prior
+  behavior is preserved (regression: the entire pre-existing suite stays
+  green). This is the seam the console's Simulate runs on — same function the
+  real path runs, so Simulate cannot diverge from enforcement (tested).
+- **`CAPABILITY_PAUSED` kill switch — BUILT.** `Policy.paused_capabilities`
+  (optional, absent -> none) lets the operator instantly pause a granted
+  capability for a role; the order rejects `CAPABILITY_PAUSED` (distinct from
+  ROLE_NOT_PERMITTED), no chef spawns, a chained rejection receipt records the
+  pause. The only NEW enforcement behavior in this phase.
+- **`authoring/policy_store.py` — BUILT.** Versioned, signed, append-only
+  policy history (genesis sha256(b"POLICY-GENESIS"), distinct from the
+  ledger's domain). Same integrity as the ledger: hash-chained, Ed25519
+  signed, INSERT/SELECT only (grep-clean). `materialize_active` writes the
+  active version in the engine's file shape (the round-trip is preserved).
+  Rollback = append the old content as a new version (history never
+  rewritten).
+- **`verify_policy_history.py` — BUILT.** Standalone (zero package imports),
+  mirrors `verify_ledger.py`: proves the policy chain from db + pubkey alone.
+  Entry point `sentinel-verify-policy`.
+- **Capability advisory metadata — BUILT.** `description`,
+  `recommended_max_rate`, `requires_second_admin` (defaulted, loader-tolerant)
+  — inputs the console coaches/gates from, NOT new enforcement. Example
+  high-risk `cap.payment.initiate.v1` (requires_second_admin) added so the
+  catalog/warnings have something real.
+- **STILL STUB:** the console HTTP API (phase 2), the glass/UI (phase 3), the
+  mock identity provider + separation-of-duties enforcement, simulate/publish/
+  approve/rollback endpoints. The engine can now support all of these; none is
+  wired yet.
 
 ## Known wrinkles (honest disclosure, not defects)
 

@@ -20,6 +20,10 @@ class Policy:
     role: str
     allowed_capabilities: tuple[str, ...]  # tuple, not list (frozen-hashable)
     rate_limit_per_hour: int
+    # v0.3 kill switch: capabilities the role is normally granted but that the
+    # operator has PAUSED. An order for one rejects CAPABILITY_PAUSED (distinct
+    # from ROLE_NOT_PERMITTED). Optional in the file; absent -> none paused.
+    paused_capabilities: tuple[str, ...] = ()
 
 
 class PolicySet:
@@ -47,10 +51,12 @@ def load_policy_set(policies_dir: str | None = None) -> PolicySet:
     obj['policies'] and build one Policy per entry, mapping obj key
     'allowed_capabilities' (list) -> tuple. Default dir = POLICIES_DIR.
 
-    No translation, defaulting, or normalization of values — keys are read
+    No translation, defaulting, or normalization of VALUES — keys are read
     exactly as written (the round-trip is the thesis). 'rate_limit_per_hour'
     is required: a malformed file missing it raises KeyError (acceptable;
-    the committed file is well-formed)."""
+    the committed file is well-formed). 'paused_capabilities' is the one
+    OPTIONAL key (v0.3 schema evolution, like the receipt's order_meta):
+    absent -> empty tuple, present -> read verbatim."""
     directory = POLICIES_DIR if policies_dir is None else policies_dir
     policies: list[Policy] = []
     for name in sorted(os.listdir(directory)):
@@ -65,6 +71,7 @@ def load_policy_set(policies_dir: str | None = None) -> PolicySet:
                     role=entry["role"],
                     allowed_capabilities=tuple(entry["allowed_capabilities"]),
                     rate_limit_per_hour=entry["rate_limit_per_hour"],
+                    paused_capabilities=tuple(entry.get("paused_capabilities", ())),
                 )
             )
     return PolicySet(policies)

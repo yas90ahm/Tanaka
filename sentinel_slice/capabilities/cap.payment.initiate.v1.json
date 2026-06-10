@@ -1,0 +1,12 @@
+{
+  "id": "cap.payment.initiate.v1",
+  "name": "Initiate payment",
+  "inputs": {"thread_id": "string"},
+  "outputs": {"payment_request": "text"},
+  "side_effects": "money_movement",
+  "scope": "own_queue",
+  "risk_class": "high",
+  "description": "Initiate a payment on the acting user's behalf. HIGH RISK: a prompt-injected agent weaponizes this if granted loosely. Pair with strict role scoping and second-admin approval; the slice does NOT execute payments.",
+  "recommended_max_rate": 2,
+  "requires_second_admin": true
+}

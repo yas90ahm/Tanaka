@@ -12,8 +12,16 @@ Pipeline order (contract §7c), short-circuit at first failure:
     1. nonce unseen        -> REPLAY
     2. capability on menu   -> OFF_MENU
     3. role permitted       -> ROLE_NOT_PERMITTED
+    3b. capability paused   -> CAPABILITY_PAUSED  (v0.3 kill switch)
     4. args within scope    -> OUT_OF_SCOPE
     5. rate limit           -> RATE_LIMITED  (FLAG A)
+
+v0.3 split: the five-step decision now lives in `evaluate_order`, a PURE
+function (read-only over the store, no ledger, no signing, no spawn, no nonce
+mutation) so the console can SIMULATE an order against a candidate policy with
+zero side effects. `process_order` calls `evaluate_order` and then performs
+the I/O (nonce consumption, rejection receipt, ticket mint+sign, spawn). The
+observable behavior of `process_order` is byte-for-byte unchanged.
 """
 
 import time
@@ -49,6 +57,84 @@ class RejectionOutcome:
     ticket: None            # always None
     reason_code: str        # one of the 5 codes in the pipeline table
     receipt: Receipt        # the REJECTED receipt already appended to the ledger
+
+
+@dataclass(frozen=True)
+class Decision:
+    """The PURE verdict of the validation pipeline — no I/O, no side effects.
+
+    accepted=True  -> reason_code is None, scoped_args is the narrowed dict.
+    accepted=False -> reason_code is the failing step's code, scoped_args None.
+
+    This is exactly what the console's Simulate needs: the real pipeline's
+    answer for an order, computed against any (candidate) policy set, with
+    nothing written and no nonce consumed."""
+    accepted: bool
+    reason_code: str | None
+    scoped_args: dict | None
+
+
+def evaluate_order(
+    order: Order,
+    *,
+    menu: dict[str, Capability],
+    policy_set: PolicySet,
+    store: CashierStore,
+) -> Decision:
+    """Run the five-step pipeline as a PURE function and return a Decision.
+
+    READ-ONLY over `store`: it uses `nonce_is_spent` (a read, not the
+    mutating `nonce_seen`) and `rate_count` (already a read). It never
+    appends a receipt, mints a ticket, or calls spawn. Calling it any number
+    of times changes no state — that is what makes Simulate honest: the
+    console runs THIS function, the same one `process_order` runs."""
+
+    # --- Step 1: nonce unseen (read-only) ---
+    if store.nonce_is_spent(order.nonce):
+        return Decision(accepted=False, reason_code="REPLAY", scoped_args=None)
+
+    # --- Step 2: capability on menu ---
+    capability = menu.get(order.capability_id)
+    if capability is None:
+        return Decision(accepted=False, reason_code="OFF_MENU", scoped_args=None)
+
+    # --- Step 3: role permitted by policy ---
+    policy = policy_set.for_role(order.role)
+    if policy is None or order.capability_id not in policy.allowed_capabilities:
+        return Decision(
+            accepted=False, reason_code="ROLE_NOT_PERMITTED", scoped_args=None
+        )
+
+    # --- Step 3b: kill switch (v0.3) ---
+    # The role MAY use this capability in normal times, but the operator has
+    # paused it. Distinct from ROLE_NOT_PERMITTED so the audit trail shows a
+    # deliberate pause, not a missing grant.
+    if order.capability_id in policy.paused_capabilities:
+        return Decision(
+            accepted=False, reason_code="CAPABILITY_PAUSED", scoped_args=None
+        )
+
+    # --- Step 4: args within scope (structural, kitchen-blind) — FLAG B ---
+    # thread_id is namespaced "<owner>/<local>"; scope passes iff owner ==
+    # principal AND local is a single safe path component (no traversal).
+    tid = order.args.get("thread_id") if isinstance(order.args, dict) else None
+    if not isinstance(tid, str) or "/" not in tid:
+        return Decision(accepted=False, reason_code="OUT_OF_SCOPE", scoped_args=None)
+    owner, local = tid.split("/", 1)
+    local_unsafe = (
+        local == "" or "/" in local or "\\" in local or local in (".", "..")
+    )
+    if owner == "" or owner != order.principal or local_unsafe:
+        return Decision(accepted=False, reason_code="OUT_OF_SCOPE", scoped_args=None)
+
+    # --- Step 5: rate limit (read-only count) ---
+    if store.rate_count(order.principal, order.capability_id) >= policy.rate_limit_per_hour:
+        return Decision(
+            accepted=False, reason_code="RATE_LIMITED", scoped_args=None
+        )
+
+    # --- ACCEPT: the narrowed dict is the validated thread_id ONLY (FLAG B) ---
+    return Decision(accepted=True, reason_code=None, scoped_args={"thread_id": tid})
 
 
 def ticket_signable_dict(ticket: Ticket) -> dict:
@@ -98,82 +184,36 @@ def process_order(
     failure. On rejection, append a REJECTED receipt and return a
     RejectionOutcome. On acceptance, mint+sign a Ticket, record the rate
     timestamp, optionally call spawn(ticket), and return a TicketOutcome
-    (no receipt appended in Phase 3)."""
+    (no receipt appended in Phase 3).
 
-    # --- Step 1: nonce unseen ---
-    # nonce_seen() both checks AND registers in one atomic call. Therefore
-    # EVERY order — including ones later rejected at steps 2-5 and accepted
-    # ones — consumes its nonce here. A second order with the same nonce
-    # always rejects REPLAY at this step regardless of the first outcome.
-    if store.nonce_seen(order.nonce):
-        receipt = _append_rejection(ledger, order, "REPLAY")
-        return RejectionOutcome(
-            accepted=False, ticket=None, reason_code="REPLAY", receipt=receipt
-        )
+    v0.3: the verdict comes from the pure `evaluate_order`; this function owns
+    the side effects. The nonce is still consumed for EVERY order (accepted or
+    rejected) exactly as before — `evaluate_order` reads it read-only, then we
+    register it here so any future repeat is caught as REPLAY."""
 
-    # --- Step 2: capability on menu ---
-    capability = menu.get(order.capability_id)
-    if capability is None:
-        receipt = _append_rejection(ledger, order, "OFF_MENU")
-        return RejectionOutcome(
-            accepted=False, ticket=None, reason_code="OFF_MENU", receipt=receipt
-        )
+    decision = evaluate_order(
+        order, menu=menu, policy_set=policy_set, store=store
+    )
 
-    # --- Step 3: role permitted by policy ---
-    # Fetch the policy once and reuse it for step 5's rate_limit_per_hour.
-    policy = policy_set.for_role(order.role)
-    if policy is None or order.capability_id not in policy.allowed_capabilities:
-        receipt = _append_rejection(ledger, order, "ROLE_NOT_PERMITTED")
+    # Consume the nonce for every order that reaches the cashier (matches the
+    # old single-call step-1 behavior: accepted and rejected orders alike burn
+    # their nonce). evaluate_order already returned REPLAY if it was spent;
+    # registering is idempotent.
+    store.nonce_seen(order.nonce)
+
+    if not decision.accepted:
+        receipt = _append_rejection(ledger, order, decision.reason_code)
         return RejectionOutcome(
             accepted=False,
             ticket=None,
-            reason_code="ROLE_NOT_PERMITTED",
+            reason_code=decision.reason_code,
             receipt=receipt,
         )
 
-    # --- Step 4: args within scope (structural, kitchen-blind) — FLAG B ---
-    # FLAG B: scoped_args holds thread_id only; chef resolves the path (cashier is kitchen-blind)
-    # thread_id is namespaced "<owner>/<local>"; owner is the substring before
-    # the first "/". Scope passes iff owner == order.principal. Missing,
-    # non-string, or "/"-less thread_id, or empty owner -> OUT_OF_SCOPE.
-    # Never raise out of process_order.
-    tid = order.args.get("thread_id") if isinstance(order.args, dict) else None
-    if not isinstance(tid, str) or "/" not in tid:
-        receipt = _append_rejection(ledger, order, "OUT_OF_SCOPE")
-        return RejectionOutcome(
-            accepted=False, ticket=None, reason_code="OUT_OF_SCOPE", receipt=receipt
-        )
-    owner, local = tid.split("/", 1)
-    # owner must be the acting principal, AND the local segment must be a SINGLE
-    # safe path component — no nested path, no separator, no parent ref — so a
-    # crafted thread_id like "user.kenji/../victim/secret" cannot traverse out of
-    # the principal's own queue into another tenant's mailbox (cross-tenant read).
-    local_unsafe = (
-        local == "" or "/" in local or "\\" in local or local in (".", "..")
-    )
-    if owner == "" or owner != order.principal or local_unsafe:
-        receipt = _append_rejection(ledger, order, "OUT_OF_SCOPE")
-        return RejectionOutcome(
-            accepted=False, ticket=None, reason_code="OUT_OF_SCOPE", receipt=receipt
-        )
-
-    # --- Step 5: rate limit ---
-    # With limit L, the first L accepted orders pass; the (L+1)-th within the
-    # window fails. rate_count() does NOT record; record_accept() runs only
-    # on acceptance below, after this check passes.
-    if store.rate_count(order.principal, order.capability_id) >= policy.rate_limit_per_hour:
-        # FLAG A: RATE_LIMITED is beyond the SPEC reason_code enum
-        receipt = _append_rejection(ledger, order, "RATE_LIMITED")
-        return RejectionOutcome(
-            accepted=False, ticket=None, reason_code="RATE_LIMITED", receipt=receipt
-        )
-
-    # --- ACCEPTANCE: all five steps passed ---
+    # --- ACCEPTANCE: all steps passed ---
     ticket_id = "tkt-" + uuid.uuid4().hex
     issued_ts = datetime.fromtimestamp(now(), tz=timezone.utc).isoformat()
-    # The narrowed dict: the validated thread_id string ONLY, no path, no
-    # other keys (FLAG B).
-    scoped_args = {"thread_id": tid}
+    scoped_args = decision.scoped_args
 
     signable = {
         "ticket_id": ticket_id,
