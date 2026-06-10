@@ -45,25 +45,49 @@ flags, unsoftened.
 
 ## Fresh-clone bootstrap
 
-Requires Python 3.11+. The only runtime dependency is `cryptography`.
+Requires **Python 3.11+**. Runtime dependency: `cryptography`. Dev: `pytest`.
 
 ```sh
+git clone <repo> && cd <repo>
 python -m venv .venv
 .venv/Scripts/activate            # Windows; on POSIX: source .venv/bin/activate
-pip install -e ".[dev]"
 
-# The signing key is gitignored — a fresh clone must generate its own pair.
-python -m sentinel_slice.keygen
+pip install -e ".[dev]"           # installs cryptography + pytest + sentinel-* CLIs
 
-python -m pytest                  # 62 tests, all behavior assertions
+python -m pytest                  # 108 behavior tests
 ```
 
-**Key caveat:** the committed `ledger.db` was signed with the original
-(uncommitted) private key and verifies against the committed
-`sentinel_slice/keys/cashier_ed25519_public.pem`. If you regenerate the
-keypair, verify *your own* runs against *your* public key and start a fresh
-ledger file — receipts signed by one key never verify against another.
-`keygen` refuses to overwrite an existing pair unless you pass `--force`.
+You can verify the committed demo chain **before generating anything** — the
+public key ships with the repo, and verification needs only the public key:
+
+```sh
+python sentinel_slice/verify_ledger.py ledger.db sentinel_slice/keys/cashier_ed25519_public.pem
+# OK verified=4
+```
+
+To **run your own instance** (place orders, use the console), generate your own
+signing key. The private key is gitignored, so a fresh clone has only the demo
+*public* key — `keygen` detects that and creates your keypair without fuss:
+
+```sh
+python -m sentinel_slice.keygen
+# Note: a demo public key shipped with the repo but this clone has no private
+# key. Creating your own keypair now...
+```
+
+**One thing to understand about keys:** receipts signed by one key only verify
+against that key's public half. The committed `ledger.db` was signed by the
+*demo* key, so once you generate your own key, run your own fresh ledger and
+verify it against *your* public key. (`keygen` only refuses, demanding
+`--force`, when a real *private* key is already present — it never silently
+destroys a secret.)
+
+### No-install path
+
+You don't need `pip install` at all — with `cryptography` available you can run
+everything via modules from the repo root: `python -m sentinel_slice.keygen`,
+`python -m sentinel_slice.run_slice`, `python -m sentinel_slice.console.server`,
+etc. The `pip install -e .` step just adds the `sentinel-*` console commands.
 
 ## Run the slice
 
@@ -288,7 +312,8 @@ python sentinel_slice/verify_policy_history.py policy_history.db sentinel_slice/
 ## Acceptance tests
 
 All 10 SPEC acceptance tests pass (`tests/test_at01_*` … `test_at10_*`),
-plus unit, hardening-regression, and gateway tests — 62 total. Highlights:
+plus unit, hardening-regression, gateway, inspector, drill, and console tests
+— 108 total. Highlights:
 
 - **AT01** honest order → exact deterministic draft in the window; receipt
   carries the digest and **no substring** of the draft appears anywhere in the

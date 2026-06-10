@@ -63,11 +63,19 @@ def main(argv=None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     force = "--force" in argv
 
-    existing = [p for p in (PRIVATE_KEY_PATH, PUBLIC_KEY_PATH) if os.path.isfile(p)]
-    if existing and not force:
+    private_exists = os.path.isfile(PRIVATE_KEY_PATH)
+    public_exists = os.path.isfile(PUBLIC_KEY_PATH)
+
+    # The PRIVATE key is the only irreplaceable artifact: regenerating it
+    # retires every ledger it ever signed. That — and only that — requires
+    # --force. (A committed PUBLIC key with no private key is the normal
+    # fresh-clone/demo state; replacing it is safe and is exactly what a new
+    # operator must do, so we don't make them fight the tool for it.)
+    if private_exists and not force:
         print("refusing to overwrite existing keypair:")
-        for p in existing:
-            print("  " + p)
+        for p in (PRIVATE_KEY_PATH, PUBLIC_KEY_PATH):
+            if os.path.isfile(p):
+                print("  " + p)
         print(
             "Regenerating breaks verification of every ledger signed by the "
             "old key. Re-run with --force only if you intend to retire those "
@@ -75,11 +83,19 @@ def main(argv=None) -> int:
         )
         return 1
 
-    if existing and force:
+    if private_exists and force:
         print(
             "WARNING: overwriting the cashier keypair. Previously signed "
             "ledgers (including a committed ledger.db) will no longer verify "
             "against the new public key."
+        )
+    elif public_exists:
+        # Fresh clone: the repo shipped a demo public key but no private key.
+        print(
+            "Note: a demo public key shipped with the repo but this clone has "
+            "no private key. Creating your own keypair now. The committed demo "
+            "ledger.db was signed by the demo key (still verifiable via git "
+            "history); start a fresh ledger for your own runs."
         )
 
     private_path, public_path = generate_keypair(KEYS_DIR)

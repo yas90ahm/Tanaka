@@ -38,6 +38,27 @@ def test_keygen_refuses_overwrite_without_force(tmp_path, monkeypatch, capsys):
     assert (keys_dir / "cashier_ed25519_public.pem").read_bytes() == pub_before
 
 
+def test_keygen_fresh_clone_generates_when_only_public_present(tmp_path, monkeypatch, capsys):
+    """The OSS fresh-clone state: a committed public key, no private key.
+    keygen must JUST WORK (no --force needed) and create the missing private
+    key, since nothing irreplaceable is at risk."""
+    keys_dir = tmp_path / "keys"
+    _point_keygen_at(monkeypatch, keys_dir)
+
+    # Produce the fresh-clone state: public present, private absent.
+    assert keygen.main([]) == 0
+    (keys_dir / "cashier_ed25519_private.pem").unlink()
+    assert (keys_dir / "cashier_ed25519_public.pem").is_file()
+    assert not (keys_dir / "cashier_ed25519_private.pem").exists()
+    capsys.readouterr()  # clear
+
+    # No --force, yet it generates and explains why.
+    assert keygen.main([]) == 0
+    out = capsys.readouterr().out
+    assert "no private key" in out
+    assert (keys_dir / "cashier_ed25519_private.pem").is_file()
+
+
 def test_keygen_force_overwrites_with_warning(tmp_path, monkeypatch, capsys):
     keys_dir = tmp_path / "keys"
     _point_keygen_at(monkeypatch, keys_dir)
