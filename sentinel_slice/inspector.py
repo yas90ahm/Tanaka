@@ -90,6 +90,13 @@ REASON_RULES = {
         "expected traffic against a deliberate pause, not an attack in "
         "itself; confirm the pause is still intended.",
     ),
+    "USER_DENIED": (
+        "medium",
+        "USER_DENIALS",
+        "policy-authorized action(s) the user DENIED at the confirmation "
+        "prompt - the agent wanted a high-stakes action you declined. Worth a "
+        "look if it recurs (an agent repeatedly pushing the same action).",
+    ),
 }
 
 

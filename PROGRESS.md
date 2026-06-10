@@ -4,7 +4,7 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 108 passing (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**Tests:** 115 passing (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
 v0.1 run (one honest order + one injected probe) PLUS a v0.2-format run
 appended on the SAME unbroken chain (schema evolution by append, never
@@ -226,6 +226,35 @@ self-contained (zero external resources, strict CSP, header token not a cookie)
 — the operator's Settings app, not a hosted service. It replaces hand-edited
 policy JSON (an invisible, ungoverned attack surface) with a legible, gated,
 recorded one.
+
+## v0.4 — consumer mode (computer-use agent on your own machine)
+
+The same engine, a different control shape: on a personal machine YOU are the
+operator and policy authoring collapses into iOS-style permission prompts. This
+is the framing for computer-use agents (Operator / Claude computer use / Open
+Interpreter et al.) — the agent reads/browses freely, but high-stakes,
+irreversible actions hit a human gate.
+
+- **`Capability.requires_user_confirmation` — BUILT.** Per-capability flag
+  (default False; `cap.payment.initiate.v1` = true). Advisory at the consumer
+  layer, not new cashier enforcement.
+- **`consumer/approval.py` — BUILT.** `ApprovalDecision(allow, remember)`,
+  `ApprovalStore` (standing "allow always" grants), `ScriptedApprover` (tests),
+  `CliApprover` (interactive allow-once / always / deny).
+- **`consumer/loop.py` (`ConsumerLoop`) — BUILT.** Wraps a SentinelLoop, runs
+  the cashier with no auto-execute, inserts the confirmation gate between
+  authorization and execution. Deny → chained REJECTED/`USER_DENIED` receipt
+  (carrying the authorized ticket id) and no execution; allow → run_chef as
+  normal; "allow always" → standing grant skips future prompts. Engine
+  untouched — it reuses `process_order(spawn=None)` + `run_chef`.
+- **`python -m sentinel_slice.consumer` — BUILT.** Self-contained demo
+  (ephemeral key/ledger): benign draft runs frictionless, a payment prompts,
+  and the receipt chain shows exactly what the agent did. Inspector gained a
+  `USER_DENIED` finding rule.
+- **HONEST LIMIT:** the confirmation gate only constrains the agent if the
+  agent is FORCED through the broker. On a real computer that requires the
+  containment layer (see sandbox backends below); the gate is the brain, the
+  sandbox is the body.
 
 ## STILL mocked / STUB below the console (unchanged)
 

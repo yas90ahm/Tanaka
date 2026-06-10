@@ -17,6 +17,10 @@ class Capability:
     description: str = ""
     recommended_max_rate: int | None = None   # console warns above this
     requires_second_admin: bool = False        # publish needs a 2nd approver
+    # v0.4 consumer mode: high-stakes actions need human-in-the-loop
+    # confirmation at EXECUTION time (Essay 5's "additional friction"). The
+    # cashier still authorizes by policy; this adds a per-action allow/deny.
+    requires_user_confirmation: bool = False
 
 
 @dataclass(frozen=True)

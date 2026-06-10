@@ -293,6 +293,56 @@ exactly like the receipt ledger:
 python sentinel_slice/verify_policy_history.py policy_history.db sentinel_slice/keys/cashier_ed25519_public.pem
 ```
 
+## Consumer mode (computer-use agents on your own machine)
+
+The same engine, pointed at the most acute version of the problem: agents that
+drive your whole computer (Operator, Claude computer use, Open Interpreter, …).
+The agent reads and browses freely; the moment it reaches for something
+irreversible or outward-facing, execution pauses and asks you — iOS-style:
+
+```sh
+python -m sentinel_slice.consumer       # self-contained demo (ephemeral key/ledger)
+```
+
+```
+=== benign action: draft a reply (no friction expected) ===
+  -> FULFILLED (asked you? False)
+
+=== high-stakes action: initiate a payment ===
+  ── action needs your approval ──
+  wants to: Initiate payment  [cap.payment.initiate.v1]
+  risk: high · side effects: money_movement
+  allow [o]nce / [a]lways / [d]eny?  d
+  -> DENIED_BY_USER (reason: USER_DENIED)
+
+=== the receipt chain (what your agent actually did) ===
+  seq 1 FULFILLED  -            cap.email.draft_reply.v1
+  seq 2 REJECTED   USER_DENIED  cap.payment.initiate.v1
+```
+
+A prompt-injected agent meets your "deny" — and either way it's on the record.
+"Allow always" records a standing grant so routine actions stop nagging.
+
+**Honest limit:** this gate only constrains the agent if the agent is *forced*
+through the broker. On a real machine that requires the containment layer
+below — the confirmation gate is the brain; the sandbox is the body.
+
+## Sandbox backends (the containment seam)
+
+The chef runs behind a swappable `Sandbox` interface (`chef/sandbox.py`):
+
+- `SubprocessSandbox` (default) — a fresh subprocess with a network-free import
+  closure and a destroyed workspace. This proves the **contract**, not an
+  isolation **guarantee**: it does not contain a hostile chef.
+- `ContainerSandbox` — runs the chef in a hardened OCI container
+  (`--network none`, `--cap-drop ALL`, read-only rootfs, non-root,
+  `--pids-limit`, no-new-privileges), optionally under **gVisor**
+  (`--runtime=runsc`) for a real user-space-kernel isolation boundary. This is
+  genuine isolation **when run on Linux with Docker (+ gVisor)**. It is **not
+  exercised on Windows / in this repo's CI** — its command construction is
+  tested exactly, and an integration test runs only where a container runtime
+  is available. Firecracker microVMs slot in behind the same interface.
+
 ## Layer map (essays → code)
 
 | Takeout layer | Module | Job |
