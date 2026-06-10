@@ -4,7 +4,7 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 124 passing, 1 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**Tests:** 131 passing, 1 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
 The skip is the ContainerSandbox Docker integration test, which runs only where
 a container runtime is present (not on Windows / minimal CI).
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
@@ -257,6 +257,23 @@ irreversible actions hit a human gate.
   agent is FORCED through the broker. On a real computer that requires the
   containment layer (see sandbox backends below); the gate is the brain, the
   sandbox is the body.
+
+## v0.6 — personal permissions (non-technical Allow / Ask / Block)
+
+The simplest possible operator surface: a phone-style permissions screen, no
+JSON or policy language.
+
+- **`consumer/preferences.py` — BUILT.** Three states per capability (ALLOW /
+  ASK / BLOCK). Sensible defaults from the capability (ASK if
+  requires_user_confirmation, else ALLOW), explicit overrides, JSON persistence
+  (load tolerates a UTF-8 BOM so Notepad/PowerShell-edited files don't crash).
+- **ConsumerLoop now consults Preferences** (replacing the old ApprovalStore):
+  ALLOW runs, ASK prompts (allow-once / allow-always→sets ALLOW / deny), BLOCK
+  auto-denies with NO prompt and a chained REJECTED/`USER_BLOCKED` receipt.
+- **`python -m sentinel_slice.consumer.permissions` — BUILT.** Numbered
+  Allow/Ask/Block editor; saves to a file the consumer loop reads. Inspector
+  gained a `USER_BLOCKED` finding. Verified end-to-end: blocking payments makes
+  the agent's payment attempt auto-deny silently, leaving only a receipt.
 
 ## v0.4 — sandbox backends (the containment seam)
 

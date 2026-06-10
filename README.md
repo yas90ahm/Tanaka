@@ -352,7 +352,36 @@ python -m sentinel_slice.consumer       # self-contained demo (ephemeral key/led
 ```
 
 A prompt-injected agent meets your "deny" — and either way it's on the record.
-"Allow always" records a standing grant so routine actions stop nagging.
+"Allow always" remembers your choice so routine actions stop nagging.
+
+### Setting permissions up front (no JSON, no prompts)
+
+You don't have to wait to be asked. Open a plain Allow / Ask / Block screen and
+decide what your agent may do, like app permissions on a phone:
+
+```sh
+python -m sentinel_slice.consumer.permissions
+```
+
+```
+Your agent's permissions
+
+  1. cap.docs.summarize.v1     risk:low   -> Allow  (default)
+  2. cap.email.draft_reply.v1  risk:low   -> Allow  (default)
+  3. cap.payment.initiate.v1   risk:high  -> Ask each time  (default)
+
+Number to change (blank = save & quit): 3
+  [a]llow / a[s]k / [b]lock for cap.payment.initiate.v1? b
+```
+
+- **Allow** — the agent does it without asking.
+- **Ask** — it checks with you each time (the default for high-risk actions).
+- **Block** — it can never do it; the attempt is auto-denied and recorded,
+  with no prompt.
+
+Defaults are sensible (low-risk Allow, high-risk Ask), so a first run just
+works; you only touch what you care about. Choices save to a small file the
+agent loop reads.
 
 **Honest limit:** this gate only constrains the agent if the agent is *forced*
 through the broker. On a real machine that requires the containment layer

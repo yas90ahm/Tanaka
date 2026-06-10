@@ -38,6 +38,8 @@ sentinel_slice/console/active_policies/
 policy_history.db
 drill-*.db
 drill-*-win/
+# Personal permissions file written by the consumer permissions editor.
+sentinel_permissions.json
 
 # NOTE: ledger.db is intentionally NOT ignored. The "definition of done"
 # requires committing a real run's ledger.db alongside verify_ledger.py output.

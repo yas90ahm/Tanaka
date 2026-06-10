@@ -97,6 +97,13 @@ REASON_RULES = {
         "prompt - the agent wanted a high-stakes action you declined. Worth a "
         "look if it recurs (an agent repeatedly pushing the same action).",
     ),
+    "USER_BLOCKED": (
+        "medium",
+        "BLOCKED_CAPABILITY_HITS",
+        "action(s) for a capability the user set to BLOCK in their "
+        "permissions - the agent tried something explicitly forbidden. "
+        "Recurring hits suggest a confused or hijacked agent.",
+    ),
 }
 
 

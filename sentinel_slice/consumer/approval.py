@@ -31,24 +31,6 @@ class ApprovalDecision:
     remember: bool = False
 
 
-class ApprovalStore:
-    """In-memory standing grants: (principal, capability_id) pairs the user
-    chose to 'always allow'. The slice keeps these in memory for the life of
-    the session; a real client would persist them per user, revocably."""
-
-    def __init__(self) -> None:
-        self._grants: set[tuple[str, str]] = set()
-
-    def has_grant(self, principal: str, capability_id: str) -> bool:
-        return (principal, capability_id) in self._grants
-
-    def grant(self, principal: str, capability_id: str) -> None:
-        self._grants.add((principal, capability_id))
-
-    def revoke(self, principal: str, capability_id: str) -> None:
-        self._grants.discard((principal, capability_id))
-
-
 class ScriptedApprover:
     """A deterministic approver for tests and scripted demos. Supply either a
     single ApprovalDecision (used for every prompt) or a list consumed in

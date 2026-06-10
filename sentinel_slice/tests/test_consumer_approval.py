@@ -22,11 +22,11 @@ from sentinel_slice.cashier.policy import Policy, PolicySet
 from sentinel_slice.cashier.store import CashierStore
 from sentinel_slice.consumer.approval import (
     ApprovalDecision,
-    ApprovalStore,
     CliApprover,
     ScriptedApprover,
 )
 from sentinel_slice.consumer.loop import ConsumerLoop
+from sentinel_slice.consumer.preferences import ALLOW, Preferences
 from sentinel_slice.ledger.receipts import Ledger
 from sentinel_slice.loop import SentinelLoop
 from sentinel_slice.menu.catalog import load_catalog
@@ -116,15 +116,15 @@ def test_allow_once_executes_and_asks_again(tmp_path):
 
 def test_allow_always_skips_second_prompt(tmp_path):
     approver = ScriptedApprover([ApprovalDecision(allow=True, remember=True)])
-    store = ApprovalStore()
-    consumer = ConsumerLoop(_loop(tmp_path), approver=approver, approval_store=store)
+    prefs = Preferences()
+    consumer = ConsumerLoop(_loop(tmp_path), approver=approver, preferences=prefs)
 
     o1 = consumer.place(_order(PAY))
     o2 = consumer.place(_order(PAY))
 
     assert o1.status == "FULFILLED" and o2.status == "FULFILLED"
-    assert len(approver.prompts) == 1       # asked ONCE; standing grant after
-    assert store.has_grant("user.kenji", PAY)
+    assert len(approver.prompts) == 1       # asked ONCE; preference set to ALLOW
+    assert prefs.explicit(PAY) == ALLOW
 
 
 def test_policy_rejection_never_reaches_prompt(tmp_path):

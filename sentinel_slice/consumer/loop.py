@@ -21,7 +21,7 @@ from dataclasses import dataclass
 
 from sentinel_slice.cashier.engine import process_order
 from sentinel_slice.chef.runner import run_chef
-from sentinel_slice.consumer.approval import ApprovalStore
+from sentinel_slice.consumer.preferences import ALLOW, ASK, BLOCK, Preferences
 from sentinel_slice.spine.types import order_meta_from_order
 
 
@@ -31,8 +31,9 @@ class ConsumerOutcome:
 
     status is one of:
       REJECTED_BY_POLICY  - the cashier refused (off-menu, scope, role, ...).
-      DENIED_BY_USER      - policy allowed it, you declined at the prompt.
-      FULFILLED           - allowed (or no confirmation needed) and the chef ran.
+      BLOCKED_BY_USER     - your permissions set this capability to BLOCK.
+      DENIED_BY_USER      - policy + permissions allowed an ASK; you declined.
+      FULFILLED           - allowed (pref ALLOW or you said yes) and chef ran.
       EXECUTION_FAILED    - allowed but the chef failed.
     """
     status: str
@@ -44,14 +45,14 @@ class ConsumerOutcome:
 
 
 class ConsumerLoop:
-    def __init__(self, sentinel_loop, *, approver, approval_store=None) -> None:
+    def __init__(self, sentinel_loop, *, approver, preferences=None) -> None:
         self._loop = sentinel_loop
         self._approver = approver
-        self._grants = approval_store if approval_store is not None else ApprovalStore()
+        self._prefs = preferences if preferences is not None else Preferences()
 
     @property
-    def grants(self) -> ApprovalStore:
-        return self._grants
+    def preferences(self) -> Preferences:
+        return self._prefs
 
     def read_receipts(self) -> list:
         return self._loop.read_receipts()
@@ -81,37 +82,35 @@ class ConsumerLoop:
 
         ticket = outcome.ticket
         capability = loop.menu.get(order.capability_id)
-        needs_confirm = bool(capability and capability.requires_user_confirmation)
-        asked = False
+        state = self._prefs.effective_state(capability)
 
-        # 2) Human-in-the-loop gate (only for confirmation-required caps without
-        #    a standing grant).
-        if needs_confirm and not self._grants.has_grant(order.principal, order.capability_id):
+        # 2a) BLOCK: your permissions say never — auto-deny, no prompt, on record.
+        if state == BLOCK:
+            receipt = self._append_consumer_rejection(
+                order, ticket, "USER_BLOCKED")
+            return ConsumerOutcome(
+                status="BLOCKED_BY_USER", reason_code="USER_BLOCKED",
+                receipt=receipt, draft=None,
+                confirmation_required=False, confirmation_asked=False,
+            )
+
+        # 2b) ASK: prompt; "allow always" upgrades the preference to ALLOW.
+        asked = False
+        if state == ASK:
             asked = True
             decision = self._approver.decide(order=order, capability=capability)
             if decision.allow and decision.remember:
-                self._grants.grant(order.principal, order.capability_id)
+                self._prefs.set(order.capability_id, ALLOW)
             if not decision.allow:
-                receipt = loop.ledger.append(
-                    receipt_id="rcpt-" + uuid.uuid4().hex,
-                    order_id=order.order_id,
-                    ticket_id=ticket.ticket_id,  # cashier DID authorize
-                    status="REJECTED",
-                    reason_code="USER_DENIED",
-                    result_digest=None,
-                    attestation=None,
-                    order_meta=order_meta_from_order(order),
-                )
+                receipt = self._append_consumer_rejection(
+                    order, ticket, "USER_DENIED")
                 return ConsumerOutcome(
-                    status="DENIED_BY_USER",
-                    reason_code="USER_DENIED",
-                    receipt=receipt,
-                    draft=None,
-                    confirmation_required=True,
-                    confirmation_asked=True,
+                    status="DENIED_BY_USER", reason_code="USER_DENIED",
+                    receipt=receipt, draft=None,
+                    confirmation_required=True, confirmation_asked=True,
                 )
 
-        # 3) Execute exactly as the enterprise loop does.
+        # 3) ALLOW (or ASK-allowed): execute exactly as the enterprise loop does.
         chef = run_chef(
             ticket,
             ledger=loop.ledger,
@@ -127,6 +126,21 @@ class ConsumerLoop:
             reason_code=None if fulfilled else "EXECUTION_FAILED",
             receipt=chef.receipt,
             draft=chef.draft_bytes if fulfilled else None,
-            confirmation_required=needs_confirm,
+            confirmation_required=(state == ASK),
             confirmation_asked=asked,
+        )
+
+    def _append_consumer_rejection(self, order, ticket, reason_code):
+        """Record a consumer-side refusal (BLOCK or declined ASK) as a chained
+        receipt. ticket_id is set because the cashier DID authorize by policy;
+        the refusal happened at the personal-permission gate."""
+        return self._loop.ledger.append(
+            receipt_id="rcpt-" + uuid.uuid4().hex,
+            order_id=order.order_id,
+            ticket_id=ticket.ticket_id,
+            status="REJECTED",
+            reason_code=reason_code,
+            result_digest=None,
+            attestation=None,
+            order_meta=order_meta_from_order(order),
         )

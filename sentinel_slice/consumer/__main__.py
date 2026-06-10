@@ -26,6 +26,7 @@ from sentinel_slice.cashier.policy import Policy, PolicySet
 from sentinel_slice.cashier.store import CashierStore
 from sentinel_slice.consumer.approval import CliApprover
 from sentinel_slice.consumer.loop import ConsumerLoop
+from sentinel_slice.consumer.preferences import Preferences
 from sentinel_slice.keygen import generate_keypair
 from sentinel_slice.ledger.receipts import Ledger
 from sentinel_slice.loop import SentinelLoop
@@ -80,7 +81,11 @@ def main() -> int:
             attestor=MockAttestor(),
             window_root=os.path.join(tmp, "win"),
         )
-        consumer = ConsumerLoop(loop, approver=CliApprover())
+        # Honor a saved permissions file if the user made one with
+        # `python -m sentinel_slice.consumer.permissions`; else defaults apply
+        # (low-stakes ALLOW, high-stakes ASK).
+        prefs = Preferences.load(os.path.abspath("sentinel_permissions.json"))
+        consumer = ConsumerLoop(loop, approver=CliApprover(), preferences=prefs)
 
         print("=== benign action: draft a reply (no friction expected) ===")
         r1 = consumer.place(_order(DRAFT))
