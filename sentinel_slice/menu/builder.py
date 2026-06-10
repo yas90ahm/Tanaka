@@ -13,7 +13,7 @@ from the template.
 
 import re
 
-from sentinel_slice.menu.templates import template
+from sentinel_slice.menu import templates as templates_mod
 
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,80}$")
 
@@ -33,13 +33,16 @@ def build_descriptor(
     requires_user_confirmation: bool | None = None,
     requires_second_admin: bool | None = None,
     enabled: bool = True,
+    template: str | None = None,
 ) -> dict:
     """Build a capability descriptor dict from form fields + a template.
 
     Technical fields (inputs/outputs/scoped_input/side_effects) are taken from
     the template; risk/friction default from the template but can be tightened
-    by the operator. Raises CapabilityBuildError on anything invalid."""
-    tmpl = template(behavior)
+    by the operator. A behavior that `needs_template` (the no-code "Custom text
+    response") requires the `template` text, stored as behavior_config. Raises
+    CapabilityBuildError on anything invalid."""
+    tmpl = templates_mod.template(behavior)
     if tmpl is None:
         raise CapabilityBuildError(
             "unknown behavior {!r}; pick one of the available templates".format(
@@ -62,6 +65,14 @@ def build_descriptor(
     if not isinstance(rate, int) or isinstance(rate, bool) or rate < 0:
         raise CapabilityBuildError("recommended_max_rate must be a non-negative int")
 
+    # Behaviors that need a message template (the no-code "Custom text
+    # response") carry it as signed config; others carry none.
+    behavior_config: dict = {}
+    if tmpl.get("needs_template"):
+        if not isinstance(template, str) or not template.strip():
+            raise CapabilityBuildError("this building block needs a message template")
+        behavior_config = {"template": template}
+
     return {
         "id": capability_id,
         "name": name.strip(),
@@ -79,4 +90,5 @@ def build_descriptor(
         "requires_second_admin": _flag(
             requires_second_admin, tmpl["default_requires_second_admin"]),
         "enabled": bool(enabled),
+        "behavior_config": behavior_config,
     }

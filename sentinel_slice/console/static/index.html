@@ -119,6 +119,12 @@
           </label>
         </div>
         <div id="behaviorSummary" class="muted"></div>
+        <div class="row" id="templateRow" style="display:none">
+          <label>Message template (use $subject, $first_line, $body, $word_count):<br>
+            <textarea id="newTemplate" rows="4" cols="60"
+              placeholder="Re: $subject&#10;&#10;Thanks — noted. ($word_count words received.)"></textarea>
+          </label>
+        </div>
         <div class="row">
           <label>Name <input type="text" id="newName" size="26" placeholder="e.g. Summarize contracts"></label>
         </div>

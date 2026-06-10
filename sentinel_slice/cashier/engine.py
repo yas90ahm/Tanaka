@@ -155,6 +155,7 @@ def ticket_signable_dict(ticket: Ticket) -> dict:
         "order_id": ticket.order_id,
         "capability_id": ticket.capability_id,
         "behavior": ticket.behavior,
+        "behavior_config": ticket.behavior_config,
         "scoped_args": ticket.scoped_args,
         "issued_ts": ticket.issued_ts,
     }
@@ -222,16 +223,19 @@ def process_order(
     ticket_id = "tkt-" + uuid.uuid4().hex
     issued_ts = datetime.fromtimestamp(now(), tz=timezone.utc).isoformat()
     scoped_args = decision.scoped_args
-    # Resolve which code template (behavior) the chef must run, from the menu
-    # descriptor, and SIGN it into the ticket — so the standalone chef can
-    # dispatch on a behavior it trusts without reading the catalog.
-    behavior = menu[order.capability_id].resolved_behavior()
+    # Resolve which code template (behavior) the chef must run AND its config
+    # (e.g. a text template), from the menu descriptor, and SIGN both into the
+    # ticket — so the standalone chef can run them without reading the catalog.
+    capability = menu[order.capability_id]
+    behavior = capability.resolved_behavior()
+    behavior_config = capability.behavior_config
 
     signable = {
         "ticket_id": ticket_id,
         "order_id": order.order_id,
         "capability_id": order.capability_id,
         "behavior": behavior,
+        "behavior_config": behavior_config,
         "scoped_args": scoped_args,
         "issued_ts": issued_ts,
     }
@@ -242,6 +246,7 @@ def process_order(
         order_id=order.order_id,
         capability_id=order.capability_id,
         behavior=behavior,
+        behavior_config=behavior_config,
         scoped_args=scoped_args,
         issued_ts=issued_ts,
         cashier_sig=cashier_sig,

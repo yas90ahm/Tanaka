@@ -71,6 +71,7 @@ def _mint_valid_wire(priv, tmp_path):
         "order_id": t.order_id,
         "capability_id": t.capability_id,
         "behavior": t.behavior,
+        "behavior_config": t.behavior_config,
         "scoped_args": t.scoped_args,
         "issued_ts": t.issued_ts,
         "cashier_sig": base64.b64encode(t.cashier_sig).decode("ascii"),

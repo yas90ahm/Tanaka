@@ -47,6 +47,7 @@ REQUIRED_KEYS = (
     "order_id",
     "capability_id",
     "behavior",
+    "behavior_config",
     "scoped_args",
     "issued_ts",
     "cashier_sig",
@@ -86,6 +87,9 @@ def main(argv) -> int:
         if not isinstance(t[key], str):
             print("required key not a string: {}".format(key), file=sys.stderr)
             return 2
+    if not isinstance(t["behavior_config"], dict):
+        print("behavior_config is not an object", file=sys.stderr)
+        return 2
     scoped_args = t["scoped_args"]
     # The cashier narrows scope to EXACTLY ONE resource, under the
     # capability's own key (thread_id / doc_id / ...). The chef is
@@ -119,6 +123,7 @@ def main(argv) -> int:
         "order_id": t["order_id"],
         "capability_id": t["capability_id"],
         "behavior": t["behavior"],
+        "behavior_config": t["behavior_config"],
         "scoped_args": t["scoped_args"],
         "issued_ts": t["issued_ts"],
     }
@@ -181,7 +186,7 @@ def main(argv) -> int:
         print("no handler for behavior {}".format(t["behavior"]),
               file=sys.stderr)
         return 5
-    output_text = handler(resource, source_text)
+    output_text = handler(resource, source_text, t["behavior_config"])
 
     # 7. Create out_dir, write the single output artifact (success-only side
     #    effect). The filename is the same for every capability.
@@ -201,7 +206,27 @@ def main(argv) -> int:
 # and one policy grant — nothing in the cashier/ledger/chef plumbing changes.
 # ---------------------------------------------------------------------------
 
-def _handle_draft_reply(resource, source_text):
+def _safe_fields(resource, source_text):
+    """The safe, fixed set of values a TEXT behavior may reference, all derived
+    from the one scoped resource the chef read — no globals, no secrets."""
+    lines = source_text.splitlines()
+    subject = ""
+    for line in lines:
+        if line.startswith("Subject:"):
+            subject = line[len("Subject:"):].strip()
+            break
+    first = next((ln.strip() for ln in lines if ln.strip()), "")
+    return {
+        "resource": resource,
+        "subject": subject,
+        "first_line": first,
+        "line_count": str(len(lines)),
+        "word_count": str(len(source_text.split())),
+        "body": source_text,
+    }
+
+
+def _handle_draft_reply(resource, source_text, config):
     """Draft a reply to an email thread (the original capability; output is
     byte-identical to v0.1 so existing receipts/tests are unchanged)."""
     subject = "(no subject)"
@@ -216,7 +241,7 @@ def _handle_draft_reply(resource, source_text):
     ).format(subject)
 
 
-def _handle_docs_summarize(resource, source_text):
+def _handle_docs_summarize(resource, source_text, config):
     """Extractive (NO MODEL) summary of a document: its first non-empty line
     plus deterministic size stats. Demonstrates 'read scoped data, return a
     derived artifact' — and the content still never touches the ledger."""
@@ -232,7 +257,7 @@ def _handle_docs_summarize(resource, source_text):
     ).format(resource, first, n_lines, n_words)
 
 
-def _handle_payment_initiate(resource, source_text):
+def _handle_payment_initiate(resource, source_text, config):
     """Produce a payment-authorization REQUEST artifact. The slice NEVER moves
     money; this is a reviewable request only (high-risk capability, gated by
     second-admin in the console and user-confirmation in consumer mode)."""
@@ -248,10 +273,30 @@ def _handle_payment_initiate(resource, source_text):
 # Keyed by BEHAVIOR (the code template), not by capability id — so an operator
 # can create many menu items (capabilities) that reuse one behavior with no new
 # code. These behavior names are the contract shared with the catalog/templates.
+def _handle_template(resource, source_text, config):
+    """GENERIC TEXT BEHAVIOR — the one an operator authors as DATA, no code.
+
+    Renders config['template'] with $-placeholders against the safe fixed field
+    set ($resource $subject $first_line $line_count $word_count $body) via
+    string.Template.safe_substitute. string.Template is chosen precisely
+    because it permits ONLY simple $name substitution — no attribute access, no
+    indexing, no code — so an operator-written template can do nothing but fill
+    in text. The output is text in the serving window; it cannot send, call
+    out, or reach anything beyond the resource the chef already read."""
+    import string
+
+    template_str = config.get("template")
+    if not isinstance(template_str, str) or not template_str:
+        raise ValueError("template behavior requires a non-empty config.template")
+    return string.Template(template_str).safe_substitute(
+        _safe_fields(resource, source_text))
+
+
 _HANDLERS = {
     "draft_reply": _handle_draft_reply,
     "docs_summarize": _handle_docs_summarize,
     "payment_request": _handle_payment_initiate,
+    "template": _handle_template,
 }
 
 

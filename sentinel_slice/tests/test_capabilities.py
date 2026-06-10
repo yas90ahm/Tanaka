@@ -138,6 +138,7 @@ def test_unknown_capability_handler_exits_5(tmp_path):
         "ticket_id": "tkt-x", "order_id": "ord-x",
         "capability_id": "cap.ghost.v1",
         "behavior": "ghost_behavior",   # a behavior the chef has no handler for
+        "behavior_config": {},
         "scoped_args": {"thread_id": "user.kenji/t-001"},
         "issued_ts": "2026-06-10T00:00:00+00:00",
     }

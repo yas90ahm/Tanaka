@@ -61,7 +61,12 @@ def _form(**over):
 def test_templates_listed(tmp_path):
     svc = _service(tmp_path)
     behaviors = [t["behavior"] for t in svc.templates(AUTHOR)["templates"]]
-    assert behaviors == ["docs_summarize", "draft_reply", "payment_request"]
+    assert behaviors == ["docs_summarize", "draft_reply", "payment_request",
+                         "template"]
+    # The "Custom text response" template behavior advertises it needs a template.
+    by = {t["behavior"]: t for t in svc.templates(AUTHOR)["templates"]}
+    assert by["template"]["needs_template"] is True
+    assert by["draft_reply"]["needs_template"] is False
 
 
 def test_create_appears_on_menu_and_capabilities(tmp_path):

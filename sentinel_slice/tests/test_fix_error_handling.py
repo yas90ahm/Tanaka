@@ -26,6 +26,7 @@ VALID_WIRE = json.dumps({
     "order_id": "ord-x",
     "capability_id": "cap.email.draft_reply.v1",
     "behavior": "draft_reply",
+    "behavior_config": {},
     "scoped_args": {"thread_id": "user.kenji/t-001"},
     "issued_ts": "2026-06-10T00:00:00+00:00",
     "cashier_sig": base64.b64encode(b"\x00" * 64).decode("ascii"),

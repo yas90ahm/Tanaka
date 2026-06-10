@@ -60,7 +60,26 @@ different owners:
 So a 59-year-old compliance officer curates the menu by clicking and filling in
 a short form; an engineer is only needed when a genuinely new *kind* of action
 must exist. (Under the hood the builder writes the descriptor for you; nothing
-is hand-edited.) The agents that will eventually sit in the
+is hand-edited.)
+
+### Two kinds of behavior — and one a non-technical person can author
+
+"A behavior needs an engineer" is only half true:
+
+- **Text behaviors** — read something and produce *formatted text* (a reply, an
+  acknowledgement, a notice). The console ships a **Custom text response**
+  building block: the operator writes a message template with fill-in fields
+  (`$subject`, `$first_line`, `$word_count`, `$body`, …) and gets a working new
+  behavior — **no code**. It's pure text rendering in the sandbox
+  (`string.Template`, `$name` substitution only — no attribute access, no code,
+  can't send or call out), so it's safe to let a non-technical person write,
+  and it still gets all the bounding, permissions, and receipts.
+- **Action behaviors** — ones with *new side effects or integrations* (actually
+  move money, call an external API). These need an engineer, by design, because
+  they touch the world in a new way that must be security-reviewed.
+
+The dividing line is honest: anything that only *formats text* is no-code;
+anything that *acts on the world in a new way* needs an engineer. The agents that will eventually sit in the
 diner seat are **model-agnostic by construction**: anything that can emit the
 order JSON below can use this infrastructure (see *The diner protocol*).
 

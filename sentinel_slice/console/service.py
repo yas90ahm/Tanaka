@@ -410,6 +410,7 @@ class ConsoleService:
                     t["default_requires_user_confirmation"],
                 "default_requires_second_admin": t["default_requires_second_admin"],
                 "default_recommended_max_rate": t["default_recommended_max_rate"],
+                "needs_template": t.get("needs_template", False),
             })
         return {"templates": out}
 
@@ -460,6 +461,7 @@ class ConsoleService:
                 requires_user_confirmation=form.get("requires_user_confirmation"),
                 requires_second_admin=form.get("requires_second_admin"),
                 enabled=form.get("enabled", True),
+                template=form.get("template"),
             )
         except CapabilityBuildError as exc:
             raise BadRequestError(str(exc))

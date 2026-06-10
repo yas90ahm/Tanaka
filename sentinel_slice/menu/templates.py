@@ -52,7 +52,30 @@ TEMPLATES = {
         "default_requires_second_admin": True,
         "default_recommended_max_rate": 2,
     },
+    # The one behavior a NON-TECHNICAL person can fully author: read a resource
+    # and produce a text message they design with fill-in fields. It's data
+    # (a template), not code — pure text rendering in the sandbox, so it can't
+    # send, call out, or do anything but format text.
+    "template": {
+        "label": "Custom text response",
+        "summary": "Read something and produce a text message you write, with "
+                   "fill-in fields like $subject, $first_line, $word_count, "
+                   "$body. No code.",
+        "scoped_input": "doc_id",
+        "inputs": {"doc_id": "string"},
+        "outputs": {"text": "text"},
+        "side_effects": "none",
+        "default_risk": "low",
+        "default_requires_user_confirmation": False,
+        "default_requires_second_admin": False,
+        "default_recommended_max_rate": 20,
+        "needs_template": True,   # the operator supplies a message template
+    },
 }
+
+# The fill-in fields a Custom text response template may use ($name).
+TEMPLATE_FIELDS = ("resource", "subject", "first_line", "line_count",
+                   "word_count", "body")
 
 
 def behaviors() -> list[str]:

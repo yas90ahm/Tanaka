@@ -4,7 +4,7 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 144 passing, 1 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**Tests:** 148 passing, 1 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
 The skip is the ContainerSandbox Docker integration test, which runs only where
 a container runtime is present (not on Windows / minimal CI).
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
@@ -362,6 +362,31 @@ items is point-and-fill.
   operator; built-ins shown locked. Verified over HTTP. The default service +
   build_default wire the custom dir so operator capabilities join the live
   menu.
+
+## v0.8 — template behaviors (a non-technical person authors a behavior, as data)
+
+Pushes the no-code line to its honest maximum: a whole CLASS of behaviors — TEXT
+behaviors — can be authored by a non-technical operator as a message template,
+not code.
+
+- **Signed `behavior_config` — BUILT.** Capability + Ticket carry a per-
+  capability config the cashier signs into the ticket (alongside behavior), so
+  the standalone chef can run operator-authored behaviors it trusts.
+- **Generic `template` behavior — BUILT.** One engineer-written chef handler
+  renders `config['template']` with `string.Template.safe_substitute` over a
+  SAFE fixed field set (`$resource $subject $first_line $line_count
+  $word_count $body`). `string.Template` permits only `$name` substitution — no
+  attribute access, no indexing, no code — so an operator template can do
+  nothing but format text (tested: `${resource.__class__}` is left literal).
+  The output is text in the window; it cannot send or call out.
+- **Builder + console — BUILT.** `menu/templates.py` adds the "Custom text
+  response" template (`needs_template`); the builder requires the template text
+  and stores it as `behavior_config`; the console create form shows a message-
+  template box for behaviors that need one. A template behavior created from
+  the form executes end to end (tested) and a missing template is rejected.
+- **HONEST LINE:** text/formatting behaviors are no-code and safe for non-
+  technical authors; behaviors with NEW side effects or integrations (move
+  money, call an API) still require an engineer and security review.
 
 ## STILL mocked / STUB below the console (unchanged)
 

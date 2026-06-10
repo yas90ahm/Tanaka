@@ -81,6 +81,7 @@ def run_chef(
             "order_id": ticket.order_id,
             "capability_id": ticket.capability_id,
             "behavior": ticket.behavior,
+            "behavior_config": ticket.behavior_config,
             "scoped_args": ticket.scoped_args,
             "issued_ts": ticket.issued_ts,
             "cashier_sig": base64.b64encode(ticket.cashier_sig).decode("ascii"),

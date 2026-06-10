@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -36,6 +36,11 @@ class Capability:
     # without deleting it. Disabled -> not returned by the live menu (ordering
     # it is OFF_MENU). The curation surface still lists it.
     enabled: bool = True
+    # v0.8 template behaviors: per-capability config the chef behavior reads —
+    # e.g. the generic "template" behavior carries {"template": "..."} so a
+    # non-technical operator can author a TEXT behavior as data (no code). The
+    # cashier signs this into the ticket so the standalone chef can trust it.
+    behavior_config: dict = field(default_factory=dict)
 
     def resolved_behavior(self) -> str:
         """The code template to run: the explicit behavior, else the id."""
@@ -59,6 +64,7 @@ class Ticket:
     order_id: str
     capability_id: str
     behavior: str           # v0.7: the code template the chef must run
+    behavior_config: dict   # v0.8: signed per-capability config for the behavior
     scoped_args: dict
     issued_ts: str
     cashier_sig: bytes

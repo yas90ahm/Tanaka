@@ -124,6 +124,8 @@ async function loadMenu() {
 function showBehaviorSummary() {
   const t = TEMPLATES.find((x) => x.behavior === $("newBehavior").value);
   $("behaviorSummary").textContent = t ? t.summary : "";
+  // Show the message-template box only for behaviors that need one.
+  $("templateRow").style.display = (t && t.needs_template) ? "" : "none";
 }
 document.addEventListener("change", (e) => {
   if (e.target && e.target.id === "newBehavior") showBehaviorSummary();
@@ -139,6 +141,8 @@ $("createCap").addEventListener("click", async () => {
   };
   const risk = $("newRisk").value;
   if (risk) form.risk_class = risk;
+  const tmpl = $("newTemplate").value;
+  if (tmpl.trim()) form.template = tmpl;
   try {
     const res = await api("POST", "/api/menu/capabilities", form);
     msg(`Added “${res.created}” to the menu.`, "ok");
