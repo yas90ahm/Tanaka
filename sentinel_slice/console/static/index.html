@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<!--
+  Sentinel Loop — Operator Console (Tanaka console, slice).
+
+  SELF-CONTAINED BY DESIGN: this page loads NOTHING from the internet. No CDN,
+  no web font, no analytics, no framework. Styles are inline; behavior is in
+  app.js served from this same localhost origin. The tool that watches the
+  agents must not itself phone home (Essay 1's trust paradox). The server ships
+  a strict Content-Security-Policy that forbids inline scripts and every
+  external origin; a script tag pointing at any off-host URL would be blocked
+  by the browser, on purpose.
+
+  This is the CONTROL PLANE: authoring + viewing only. It never sees payload
+  content (receipts carry digests + metadata; simulate runs the pure decision
+  function). Run it on the operator's own machine, localhost only.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sentinel Loop — Operator Console</title>
+  <style>
+    :root { --bg:#f4f1ea; --ink:#2c2520; --muted:#6b6157; --line:#d8d0c4;
+            --accent:#a0522d; --ok:#2e7d32; --warn:#b26a00; --bad:#b00020;
+            --card:#fffdf8; }
+    * { box-sizing: border-box; }
+    body { margin:0; font:15px/1.5 Georgia, "Times New Roman", serif;
+           background:var(--bg); color:var(--ink); }
+    header { background:var(--card); border-bottom:3px solid var(--accent);
+             padding:12px 20px; }
+    h1 { margin:0; font-size:20px; }
+    .sub { color:var(--muted); font-size:13px; }
+    .bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+           margin-top:8px; }
+    input, select, button, textarea { font:inherit; }
+    input[type=text], input[type=number], textarea {
+      border:1px solid var(--line); background:#fff; padding:5px 7px;
+      border-radius:4px; }
+    button { cursor:pointer; border:1px solid var(--accent); background:var(--accent);
+             color:#fff; padding:6px 12px; border-radius:4px; }
+    button.ghost { background:#fff; color:var(--accent); }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    nav { display:flex; gap:4px; padding:0 20px; background:var(--card);
+          border-bottom:1px solid var(--line); }
+    nav button { background:none; border:none; color:var(--muted);
+                 border-bottom:3px solid transparent; border-radius:0;
+                 padding:10px 14px; }
+    nav button.active { color:var(--ink); border-bottom-color:var(--accent); }
+    main { padding:20px; max-width:1000px; }
+    .screen { display:none; } .screen.active { display:block; }
+    table { border-collapse:collapse; width:100%; background:var(--card); }
+    th, td { border:1px solid var(--line); padding:6px 9px; text-align:left;
+             vertical-align:top; font-size:14px; }
+    th { background:#efe9df; }
+    .card { background:var(--card); border:1px solid var(--line);
+            border-radius:6px; padding:12px; margin-bottom:12px; }
+    .pill { display:inline-block; padding:1px 8px; border-radius:10px;
+            font-size:12px; border:1px solid var(--line); }
+    .risk-high { color:var(--bad); border-color:var(--bad); }
+    .risk-low { color:var(--ok); border-color:var(--ok); }
+    .sev-critical,.sev-high { color:var(--bad); font-weight:bold; }
+    .sev-medium { color:var(--warn); } .sev-low,.sev-info { color:var(--muted); }
+    .warn { color:var(--warn); font-size:13px; }
+    .ok { color:var(--ok); } .bad { color:var(--bad); }
+    .muted { color:var(--muted); font-size:13px; }
+    code, pre { font-family:"Courier New", monospace; font-size:13px; }
+    pre { background:#efe9df; padding:10px; border-radius:4px; overflow:auto; }
+    label { font-size:13px; }
+    .row { margin:5px 0; }
+    #msg { padding:8px 20px; font-size:13px; min-height:20px; }
+    .flag { background:#fff5e6; border:1px solid var(--warn); color:var(--warn);
+            padding:6px 10px; border-radius:4px; font-size:12px; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Sentinel Loop — Operator Console</h1>
+    <div class="sub">Control plane · localhost only · authoring &amp; audit (never sees content)</div>
+    <div class="bar">
+      <label>Admin token:
+        <input type="text" id="token" size="22" placeholder="X-Admin-Token" />
+      </label>
+      <button class="ghost" id="useAuthor">dev author</button>
+      <button class="ghost" id="useReviewer">dev reviewer</button>
+      <span class="muted" id="whoami"></span>
+    </div>
+    <div class="flag">MOCK identity (static dev tokens). Real deployment swaps in SSO. This page loads zero external resources.</div>
+  </header>
+
+  <nav>
+    <button data-screen="capabilities" class="active">Capabilities</button>
+    <button data-screen="policies">Policies</button>
+    <button data-screen="activity">Activity</button>
+  </nav>
+
+  <div id="msg"></div>
+
+  <main>
+    <section class="screen active" id="screen-capabilities">
+      <p class="muted">The menu — what can be ordered. Owned by the platform/engineering; you compose policy over it.</p>
+      <table id="capTable"><thead><tr>
+        <th>Capability</th><th>Risk</th><th>Side effects</th>
+        <th>Rec. max rate</th><th>2nd admin</th><th>Description</th>
+      </tr></thead><tbody></tbody></table>
+    </section>
+
+    <section class="screen" id="screen-policies">
+      <div class="card">
+        <strong>Active policy</strong>
+        <div id="activePolicy" class="muted">—</div>
+      </div>
+
+      <div class="card">
+        <strong>Editor</strong>
+        <div class="muted">Compose policy from the menu, then Simulate before you Publish.</div>
+        <div id="editor"></div>
+        <div class="row"><button class="ghost" id="addRole">+ role</button></div>
+        <div class="row">
+          <button id="simulateBtn">Simulate</button>
+          <button id="publishBtn">Publish…</button>
+        </div>
+        <div id="simResults"></div>
+      </div>
+
+      <div class="card">
+        <strong>History</strong> <span class="muted">(signed, append-only)</span>
+        <table id="historyTable"><thead><tr>
+          <th>seq</th><th>author</th><th>status</th><th>approved by</th>
+          <th>reason</th><th></th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-activity">
+      <div class="row">
+        <button id="refreshActivity">Refresh</button>
+        <button class="ghost" id="runDrill">Run adversarial drill</button>
+      </div>
+      <div id="activitySummary" class="card muted">—</div>
+      <div id="findings"></div>
+      <div id="drillResult"></div>
+      <div id="receiptView"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

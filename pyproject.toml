@@ -39,6 +39,7 @@ sentinel_slice = [
     "policies/*.json",
     "keys/*_public.pem",
     "kitchen/fixtures/mailbox/**/*.txt",
+    "console/static/*",
 ]
 
 [tool.pytest.ini_options]

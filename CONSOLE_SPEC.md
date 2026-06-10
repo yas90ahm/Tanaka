@@ -253,7 +253,40 @@ expressed through the audited policy path, plus one explicit switch:
    Simulate is proven to write nothing; the policy history a session produces
    verifies standalone. 104 tests green.
 3. **The glass.** One static page, three screens, vanilla JS against the API.
-   Manual run-through + the stdlib e2e test. STOP. ← NEXT
+   Manual run-through + the stdlib e2e test.
+   **— DONE (v0.3 phase 3).** `console/static/index.html` (inline CSS) +
+   `app.js` (no framework), three screens: Capabilities (catalog browser),
+   Policies (structured editor with capability checkboxes, rate input, pause
+   toggles, live coaching warnings, Simulate, Publish, Approve), Activity
+   (chain status, findings with click-through to receipts, Run Drill). Served
+   by `server.py` from 127.0.0.1 with a strict CSP (`default-src 'none'`,
+   `script-src 'self'`, no external origins, no inline script), nosniff /
+   frame-deny / no-referrer headers, and NO CORS. The page loads without a
+   token (it's what lets the operator enter one); every /api call still
+   requires it. Tests prove the page is self-contained (zero external URLs).
+   108 tests green; live run-through verified author→publish(pending)→
+   reviewer-approve over real HTTP.
+
+## Security posture (answering "isn't a server a risk for an air-gapped slice?")
+
+The console is the highest-value target, so its design is defensive by
+construction:
+
+- **Control plane, not data plane.** Nothing in the enforcement/data path
+  depends on the console; turn it off and agents still run and are governed.
+  It is optional.
+- **Structurally blind to content.** Like the cashier, it can only reach
+  receipts (digests + metadata) and policies. A fully compromised console
+  cannot read one payload byte — the data isn't reachable from where it sits.
+- **Its one power — authoring — is bounded.** Every change is signed,
+  append-only, externally verifiable, and second-admin-gated for sensitive
+  capabilities. It cannot silently widen permissions.
+- **Localhost, self-contained, operator-owned.** Binds loopback only (warns
+  otherwise), loads zero external resources, strict CSP, token in a header
+  (not a cookie) so cross-origin pages can't forge calls. It is the Settings
+  app, not a SaaS — it runs inside the operator's trust boundary.
+- **Replaces an existing, *worse* surface.** Hand-edited policy JSON was
+  already attackable, just invisibly. This makes authoring legible and gated.
 
 ## What this explicitly does NOT make real (unchanged stubs)
 

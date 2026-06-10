@@ -34,6 +34,28 @@ from sentinel_slice.console.service import ConsoleError, BadRequestError
 
 _STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
+# Strict CSP for the console page: same-origin only, NO external origins, NO
+# inline scripts (script-src 'self' — app.js is a separate same-origin file).
+# This is the air-gap honored in the browser: the page that watches the agents
+# can load and reach nothing but this localhost origin. style-src allows inline
+# CSS only (low risk; no inline <script> is permitted).
+_CSP = (
+    "default-src 'none'; "
+    "script-src 'self'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "connect-src 'self'; "
+    "img-src 'self' data:; "
+    "base-uri 'none'; "
+    "form-action 'none'; "
+    "frame-ancestors 'none'"
+)
+
+_STATIC_FILES = {
+    "/": ("index.html", "text/html; charset=utf-8"),
+    "/index.html": ("index.html", "text/html; charset=utf-8"),
+    "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+}
+
 
 def make_handler(service, registry: AdminRegistry):
     class Handler(BaseHTTPRequestHandler):
@@ -41,13 +63,44 @@ def make_handler(service, registry: AdminRegistry):
         def log_message(self, *args):  # noqa: D401
             pass
 
+        def _security_headers(self):
+            # Applied to every response. CSP enforces the air gap in the
+            # browser; nosniff/frame-deny are belt-and-suspenders.
+            self.send_header("Content-Security-Policy", _CSP)
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Referrer-Policy", "no-referrer")
+
         def _send_json(self, status, obj):
             body = json.dumps(obj, indent=2, sort_keys=True).encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
+            self._security_headers()
             self.end_headers()
             self.wfile.write(body)
+
+        def _send_static(self, path):
+            """Serve the self-contained console page/script. No token needed —
+            the page is what lets the operator enter their token; every /api
+            call it then makes is authenticated. Returns True if handled."""
+            entry = _STATIC_FILES.get(path)
+            if entry is None:
+                return False
+            filename, ctype = entry
+            try:
+                with open(os.path.join(_STATIC_DIR, filename), "rb") as fh:
+                    body = fh.read()
+            except OSError:
+                self._send_json(404, {"error": "NotFound", "detail": filename})
+                return True
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self._security_headers()
+            self.end_headers()
+            self.wfile.write(body)
+            return True
 
         def _admin(self):
             return registry.resolve(self.headers.get("X-Admin-Token"))
@@ -92,8 +145,6 @@ def make_handler(service, registry: AdminRegistry):
                     return service.activity(admin)
                 if path.startswith("/api/receipt/"):
                     return service.receipt(admin, _int_tail(path))
-                if path == "/" or path == "/index.html":
-                    return self._serve_static()
                 raise _not_found(path)
             if method == "POST":
                 body = self._body()
@@ -119,21 +170,14 @@ def make_handler(service, registry: AdminRegistry):
                 raise _not_found(path)
             raise _not_found(path)
 
-        def _serve_static(self):
-            # Phase 3 ships the page; for now report that the API is up.
-            return {
-                "console": "Sentinel Loop operator console API",
-                "ui": "static page ships in CONSOLE_SPEC phase 3",
-                "endpoints": [
-                    "GET /api/capabilities", "GET /api/policies",
-                    "GET /api/activity", "GET /api/receipt/{seq}",
-                    "POST /api/policies/simulate", "POST /api/policies/publish",
-                    "POST /api/policies/{seq}/approve",
-                    "POST /api/policies/rollback", "POST /api/drill/run",
-                ],
-            }
-
         def do_GET(self):
+            # Static console page/script load WITHOUT a token (they carry no
+            # data and are what lets the operator enter a token). All /api
+            # routes still require the token via _dispatch.
+            path = self.path.split("?", 1)[0]
+            if path in _STATIC_FILES:
+                self._send_static(path)
+                return
             self._dispatch("GET")
 
         def do_POST(self):
@@ -237,10 +281,18 @@ def main(argv=None) -> int:
     registry = (
         load_registry(args.admins) if args.admins else default_dev_registry()
     )
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        print(
+            "WARNING: binding {} is NOT loopback. The console is the highest-"
+            "value target and is designed for localhost / the operator's own "
+            "machine, with MOCK identity and no TLS. Exposing it off-host is "
+            "unsafe in the slice.".format(args.host)
+        )
     server = make_server(service, registry, host=args.host, port=args.port)
     print(
-        "Sentinel console API on http://{}:{}  (MOCK identity — dev tokens: "
-        "dev-author-token / dev-reviewer-token)".format(args.host, args.port)
+        "Sentinel operator console on http://{}:{}\n"
+        "  open that URL in a browser; MOCK identity dev tokens: "
+        "dev-author-token / dev-reviewer-token".format(args.host, args.port)
     )
     try:
         server.serve_forever()

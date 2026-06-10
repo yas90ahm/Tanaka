@@ -227,6 +227,48 @@ the drill detects drift, which is the reason the curriculum loop exists. The
 probe set is fixed in code: it proves the curriculum *slot*; the signed,
 layered, continuously updated curriculum is a STUB.
 
+## The operator console (Tanaka)
+
+The control surface that lets a non-engineer compliance officer author agent
+policy correctly — the piece the essays call the actual product. Localhost
+only, self-contained (loads zero external resources):
+
+```sh
+python -m sentinel_slice.console.server            # http://127.0.0.1:8787
+```
+
+Open that URL, paste a dev token (`dev-author-token` or `dev-reviewer-token`),
+and you get three screens: **Capabilities** (the menu, with risk class and
+which capabilities need a second admin), **Policies** (a structured editor —
+pick capabilities, set rates, with live "industry-standard max" coaching;
+**Simulate** shows exactly what an agent could/couldn't do under the candidate
+policy *before* you commit; **Publish** records a signed version; sensitive
+capabilities go **pending** until a second admin approves), and **Activity**
+(the inspector's report live, each finding one click from its receipt, plus a
+**Run Drill** button).
+
+**Why a server here doesn't break the "air gap":** the console is the *control
+plane*, not the data plane. Nothing in the enforcement path depends on it
+(turn it off, agents still run and are governed). It is *structurally blind to
+content* — like the cashier, it can reach only receipts (digests + metadata)
+and policies, so a full compromise leaks no payload. Its one power, authoring,
+is *signed, append-only, externally verifiable, and second-admin-gated*. It
+binds **loopback only**, ships a strict CSP that forbids inline scripts and
+every external origin, sends no CORS, and carries its token in a header (not a
+cookie) so cross-origin pages can't forge calls. It is the operator's Settings
+app, run inside their trust boundary — not a hosted service. And it *replaces*
+hand-edited policy JSON, which was already an attack surface, just an invisible
+one. Identity is a **MOCK** static token table (flagged loudly); the
+separation-of-duties enforcement on top of it is real, and the seam swaps to
+SSO without touching anything else.
+
+Policy history is itself a signed, append-only chain — verify it standalone,
+exactly like the receipt ledger:
+
+```sh
+python sentinel_slice/verify_policy_history.py policy_history.db sentinel_slice/keys/cashier_ed25519_public.pem
+```
+
 ## Layer map (essays → code)
 
 | Takeout layer | Module | Job |
@@ -239,6 +281,7 @@ layered, continuously updated curriculum is a STUB.
 | Receipt | `ledger/receipts.py`, `verify_ledger.py` | Append-only signed hash chain; standalone verification |
 | Inspector (back office) | `inspector.py` | Chain-validated, operator-legible report over the whole day |
 | Curriculum (drill slot) | `curriculum/drill.py` | Fixed adversarial probe suite; receipt-backed resistance report |
+| Operator console (Tanaka) | `console/` | Localhost UI + API to author policy, simulate, publish (second-admin gated), and watch activity |
 | Authoring (Tanaka, in miniature) | `authoring/policy_form.py` + `policies/*.json` | One-screen form whose output the engine consumes byte-for-byte |
 | Loop | `loop.py` | The credential boundary — the only place the private key lives |
 

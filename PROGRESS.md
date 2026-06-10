@@ -4,7 +4,7 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 104 passing (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**Tests:** 108 passing (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
 v0.1 run (one honest order + one injected probe) PLUS a v0.2-format run
 appended on the SAME unbroken chain (schema evolution by append, never
@@ -198,11 +198,42 @@ The operator control loop, end to end over HTTP — no browser yet.
   401/403/404/409/400. `sentinel-console` entry point + `sentinel-verify-policy`.
   An e2e test drives author→simulate→publish→approve→activity over a real
   socket and verifies the resulting policy history standalone.
-- **STILL STUB:** the glass/UI (phase 3 — one static page, three screens). The
-  API is complete and tested; only the browser front-end remains. Also still
-  mocked/stub below the console: TEE attestation, microVM, provenance kitchen,
-  real SSO, live session/runtime revocation, anomaly baseline, signed
-  curriculum, external anchoring.
+## v0.3 phase 3 — Tanaka console UI (the glass)
+
+- **`console/static/index.html` + `app.js` — BUILT.** Self-contained operator
+  UI (no framework, inline CSS, one local script). Three screens: Capabilities
+  (catalog with risk/second-admin/recommended-rate), Policies (structured
+  editor — capability checkboxes from the menu, rate input, pause toggles,
+  live coaching warnings on over-rate / second-admin caps; Simulate; Publish;
+  Approve on pending), Activity (chain status, deterministic findings with
+  click-through to individual receipts, Run Drill). Talks only to same-origin
+  /api with the token in `X-Admin-Token`.
+- **Served safely — BUILT.** `server.py` serves the page/script from 127.0.0.1
+  with a strict CSP (`default-src 'none'`, `script-src 'self'`, no external
+  origins, no inline script), `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, no CORS. The page loads without a token; every /api
+  call still requires it. A test proves the static files reference ZERO
+  external URLs (no network egress). Non-loopback binds print a warning.
+
+## Security posture of the console (control plane, not a new data risk)
+
+The console is the highest-value target, designed defensively: it is OPTIONAL
+(nothing in the enforcement/data path depends on it), STRUCTURALLY BLIND to
+payload content (it reaches only digests + metadata + policies — a full
+compromise leaks no content), its one power (authoring) is SIGNED, append-only,
+externally verifiable, and second-admin-gated, and it is LOCALHOST-ONLY +
+self-contained (zero external resources, strict CSP, header token not a cookie)
+— the operator's Settings app, not a hosted service. It replaces hand-edited
+policy JSON (an invisible, ungoverned attack surface) with a legible, gated,
+recorded one.
+
+## STILL mocked / STUB below the console (unchanged)
+
+TEE attestation, microVM, provenance-signed kitchen, real SSO (console identity
+is a MOCK token table), live session/runtime revocation, anomaly baseline,
+signed continuously-updated curriculum, external chain anchoring, TLS/hardened
+public exposure. The operator control loop is now real on top of the existing
+engine; the layers below it remain as flagged.
 
 ## Known wrinkles (honest disclosure, not defects)
 
