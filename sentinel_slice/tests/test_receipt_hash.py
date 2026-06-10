@@ -36,7 +36,8 @@ def test_content_dict_excludes_this_hash_and_sig():
     cd = receipt_content_dict(BASELINE)
     assert set(cd.keys()) == {
         "receipt_id", "order_id", "ticket_id", "status",
-        "reason_code", "result_digest", "attestation", "prev_hash",
+        "reason_code", "result_digest", "attestation", "order_meta",
+        "prev_hash",
     }
     assert "this_hash" not in cd
     assert "sig" not in cd
@@ -51,6 +52,9 @@ def test_content_dict_exact_value():
         "reason_code": None,
         "result_digest": "d" * 64,
         "attestation": {"mock": True, "measurement": "abc123"},
+        # v0.2: order_meta defaults to None when a Receipt is built without
+        # who/what/when metadata (and on rows read from pre-v0.2 ledgers).
+        "order_meta": None,
         # BASELINE.prev_hash is set from the GENESIS_PREV_HASH symbol, whose
         # true sha256(b"GENESIS") value is the 901131... digest below (see
         # test_genesis_prev_hash_literal for why the draft's af555... literal
@@ -68,8 +72,10 @@ def test_baseline_hash_is_stable_hex():
 
 
 def test_baseline_hash_exact_literal():
+    # v0.2 literal: the content dict gained "order_meta": None, which changes
+    # the canonical bytes (the v0.1 literal was bfcf09eb...098b830).
     assert receipt_content_hash(receipt_content_dict(BASELINE)) == \
-        "bfcf09ebf46eda585fc31c654762e0ba59c0779625eb53280d7d74d2d098b830"
+        "d839fe4d22f73d6ec6ffdcefbc65874d8f6f651f6dbd584d2740c96c80f67bad"
 
 
 def test_hash_changes_when_each_content_field_mutated():
@@ -83,6 +89,12 @@ def test_hash_changes_when_each_content_field_mutated():
         "reason_code":  "OFF_MENU",
         "result_digest": "e" * 64,
         "attestation":  {"mock": True, "measurement": "different"},
+        "order_meta":   {
+            "principal": "user.mallory",
+            "role": "account_manager",
+            "capability_id": "cap.email.draft_reply.v1",
+            "ts": "2026-06-10T00:00:00+00:00",
+        },
         "prev_hash":    "00" * 32,
     }
     assert set(mutations.keys()) == set(receipt_content_dict(BASELINE).keys())

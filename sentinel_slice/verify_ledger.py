@@ -1,10 +1,16 @@
 """Standalone ledger verifier.
 
 This module is intentionally STANDALONE: it imports nothing from the
-`sentinel_slice` package. It re-implements canonical JSON, the 8-key
-content-dict shape, the genesis constant, and the sha256 hashing locally so
-that the ledger can be verified with only `ledger.db` + the public key PEM and
-no access to the package source.
+`sentinel_slice` package. It re-implements canonical JSON, the content-dict
+rule, the genesis constant, and the sha256 hashing locally so that the ledger
+can be verified with only `ledger.db` + the public key PEM and no access to
+the package source.
+
+Content rule (v0.2, format-evolution-safe): this_hash binds EVERY stored key
+except this_hash and sig. The 8 core keys must be present in every row;
+additional keys appended by later schema versions (e.g. v0.2's order_meta)
+are hash-bound automatically — so v0.1 rows and v0.2 rows verify on the same
+unbroken chain, and INSERTING a foreign key into an old row breaks it.
 
 CLI:  python verify_ledger.py <ledger.db> <pubkey.pem>
 
@@ -35,8 +41,8 @@ from cryptography.exceptions import InvalidSignature
 # "901131d838b17aac0f7885b81e03cbdc9f5157a00343d30ab22083685ed1416a".
 GENESIS_PREV_HASH = hashlib.sha256(b"GENESIS").hexdigest()
 
-# The 8 content keys, in the binding order. Order is irrelevant after
-# canonicalization (sort_keys=True), but the key SET is load-bearing.
+# The 8 CORE content keys every row must carry, in any schema version.
+# Order is irrelevant after canonicalization (sort_keys=True).
 CONTENT_KEYS = (
     "receipt_id",
     "order_id",
@@ -48,6 +54,10 @@ CONTENT_KEYS = (
     "prev_hash",
 )
 
+# The two keys excluded from the content hash: the hash itself and the
+# signature over it. Everything else in the row is hash-bound.
+EXCLUDED_KEYS = ("this_hash", "sig")
+
 
 def canonical_bytes(obj):
     """Byte-identical to spine.canonical.canonical_bytes."""
@@ -55,12 +65,20 @@ def canonical_bytes(obj):
 
 
 def content_dict_from_row(parsed):
-    """Build the 8-key content dict by selecting those keys from a parsed row."""
-    return {key: parsed[key] for key in CONTENT_KEYS}
+    """The content dict is the stored row minus this_hash and sig. The 8 core
+    keys must exist; extra keys from later schema versions ride along and are
+    therefore hash-bound."""
+    for key in CONTENT_KEYS:
+        if key not in parsed:
+            raise KeyError(key)
+    for key in EXCLUDED_KEYS:
+        if key not in parsed:
+            raise KeyError(key)
+    return {key: value for key, value in parsed.items() if key not in EXCLUDED_KEYS}
 
 
 def recompute_hash(parsed):
-    """sha256 hex of the canonical JSON of the 8-key content dict."""
+    """sha256 hex of the canonical JSON of the row's content dict."""
     return hashlib.sha256(canonical_bytes(content_dict_from_row(parsed))).hexdigest()
 
 

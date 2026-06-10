@@ -4,10 +4,12 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 62 passing (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
-**All 10 acceptance tests pass.** A real run (one honest order + one injected
-probe) is committed as `ledger.db`; `verify_ledger.py ledger.db
-sentinel_slice/keys/cashier_ed25519_public.pem` prints `OK verified=2` and exits 0.
+**Tests:** 76 passing (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**All 10 acceptance tests pass.** The committed `ledger.db` holds the original
+v0.1 run (one honest order + one injected probe) PLUS a v0.2-format run
+appended on the SAME unbroken chain (schema evolution by append, never
+rewrite); `verify_ledger.py ledger.db
+sentinel_slice/keys/cashier_ed25519_public.pem` prints `OK verified=4` and exits 0.
 
 ---
 
@@ -106,6 +108,38 @@ now 62 passing.
   model-agnostic wire format), the real/mocked table, the essay→module layer
   map, and the production swap map.
 
+## v0.2 — the back office (receipt metadata, inspector, drill)
+
+- **Receipt `order_meta` — BUILT.** Every new receipt names who/what/when
+  (`{principal, role, capability_id, ts}`) per Essay 3 ("the receipt names
+  everyone involved"). METADATA ONLY — never `args`, never content; the
+  privacy invariant (no payload in the ledger) is unchanged and still tested.
+  The verifier's content rule is now format-evolution-safe: `this_hash` binds
+  every stored key except `this_hash`/`sig` (core 8 required), so v0.1 rows
+  and v0.2 rows verify on one unbroken chain and inserting a foreign key into
+  an old row breaks it (tested). Pre-v0.2 rows read back with
+  `order_meta=None` and are counted as `legacy_rows` by the inspector.
+- **`inspector.py` — BUILT.** The back office: SELECT-only over the ledger,
+  validates the full chain (hashes, links, signatures with `--pubkey`) before
+  trusting a row, then reports the day in operator language with
+  DETERMINISTIC findings (off-menu → possible injection, replay, scope, role,
+  rate pressure, execution failures, plus an ATTESTATION_IS_MOCK reminder).
+  **FLAGS:** this is pattern SURFACING, not anomaly DETECTION — no baseline,
+  no time-windowing, no behavioral model (that dashboard remains a STUB). All
+  audit is retrospective (Essay 5): it finds attacks after the receipts
+  exist; it does not prevent them.
+- **`curriculum/drill.py` — BUILT (the curriculum SLOT, not the curriculum).**
+  Fixed deterministic probe suite — 1 control + 6 attacks (prompt injection
+  via the poisoned fixture, role escalation, cross-tenant scope, path
+  traversal, replay, rate flood) — fired through the REAL pipeline so every
+  probe lands as a chained receipt; report = "resisted N/6" with receipt ids;
+  exit 1 on any drift. The rate-flood probe reads the limit from the deployed
+  policy file, so a weakened policy makes the drill fail (tested).
+  **FLAGS:** the probe set is FIXED IN CODE. Essay 6's real curriculum —
+  signed, layered (platform/industry/operator), continuously updated,
+  randomized scheduling, governed supply chain — is NOT built and stays a
+  STUB. No LLM; probes are deterministic Orders.
+
 ## Known wrinkles (honest disclosure, not defects)
 
 - **Runner pre-creates the persistent window dir before spawning the chef.**
@@ -197,6 +231,9 @@ now 62 passing.
 
 Full Tanaka console — **STUB.** Multiple capabilities — **STUB.** Real LLM diner
 — **STUB.** Firecracker/gVisor microVM — **STUB.** Real TEE attestation —
-**STUB.** Curriculum delivery pipeline — **STUB.** Anomaly dashboard — **STUB.**
-External chain anchoring — **STUB.** Each is a swap behind an existing contract;
-none changes a type signature.
+**STUB.** Curriculum delivery pipeline (signed, layered, continuously updated;
+the drill proves only its slot) — **STUB.** Behavioral anomaly dashboard (the
+inspector surfaces patterns; it has no baseline or model) — **STUB.**
+External chain anchoring — **STUB.** FastAPI/network surface with
+authentication (the gateway is in-process trust) — **STUB.** Each is a swap
+behind an existing contract; none changes a type signature.

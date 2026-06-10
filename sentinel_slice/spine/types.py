@@ -45,3 +45,21 @@ class Receipt:
     prev_hash: str
     this_hash: str
     sig: bytes
+    # v0.2: the receipt names everyone involved (who/what/when — the diner,
+    # the role, the capability, the order timestamp). METADATA ONLY: never
+    # args, never content. None on rows written before v0.2.
+    order_meta: dict | None = None
+
+
+def order_meta_from_order(order: Order) -> dict:
+    """The FROZEN 4-key metadata dict a receipt records about its Order:
+    who (principal, role), what (capability_id), when (the order's ts).
+
+    Deliberately excludes `args`: args are caller-supplied and could carry
+    content in future capabilities; receipts carry metadata only."""
+    return {
+        "principal": order.principal,
+        "role": order.role,
+        "capability_id": order.capability_id,
+        "ts": order.ts,
+    }

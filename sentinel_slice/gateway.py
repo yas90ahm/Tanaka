@@ -105,8 +105,9 @@ def parse_order(text: str | bytes) -> Order:
 
 
 def receipt_to_dict(receipt: Receipt) -> dict:
-    """The full receipt as a JSON-plain dict: the 8 content keys (via the one
-    spine helper) plus this_hash and the base64 signature."""
+    """The full receipt as a JSON-plain dict: the content keys (via the one
+    spine helper — incl. v0.2's order_meta who/what/when metadata) plus
+    this_hash and the base64 signature."""
     d = receipt_content_dict(receipt)
     d["this_hash"] = receipt.this_hash
     d["sig"] = base64.b64encode(receipt.sig).decode("ascii")

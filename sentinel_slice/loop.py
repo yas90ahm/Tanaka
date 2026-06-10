@@ -25,6 +25,7 @@ from sentinel_slice.menu.catalog import load_catalog
 from sentinel_slice.ledger.receipts import Ledger
 from sentinel_slice.chef.runner import run_chef
 from sentinel_slice.attestor.mock import MockAttestor
+from sentinel_slice.spine.types import order_meta_from_order
 from sentinel_slice.window import serving
 
 
@@ -58,11 +59,16 @@ class SentinelLoop:
         self.attestor = attestor
         self.window_root = os.path.abspath(window_root)
         self._last_chef = None
+        self._current_order_meta = None
 
     def _spawn(self, ticket):
         """Engine hook: run the chef on the freshly-signed ticket. Records the
         ChefResult onto the instance (process_order discards the return value)
-        so `place` can surface the produced draft, and also returns it."""
+        so `place` can surface the produced draft, and also returns it.
+
+        order_meta rides alongside (NOT inside) the ticket: the Ticket
+        signable dict is a frozen Phase-4 contract, and the chef has no
+        business knowing the principal anyway — only the receipt does."""
         self._last_chef = run_chef(
             ticket,
             ledger=self.ledger,
@@ -70,6 +76,7 @@ class SentinelLoop:
             fixtures_root=self.fixtures_root,
             attestor=self.attestor,
             window_root=self.window_root,
+            order_meta=self._current_order_meta,
         )
         return self._last_chef
 
@@ -78,6 +85,7 @@ class SentinelLoop:
         ran during process_order (via _spawn); on rejection _spawn never ran
         so _last_chef stays None."""
         self._last_chef = None
+        self._current_order_meta = order_meta_from_order(order)
         outcome = process_order(
             order,
             menu=self.menu,

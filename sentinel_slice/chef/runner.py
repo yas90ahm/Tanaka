@@ -54,6 +54,7 @@ def run_chef(
     fixtures_root: str,
     attestor,
     window_root: str | None = None,
+    order_meta: dict | None = None,
 ) -> ChefResult:
     """Spawn the chef subprocess on `ticket`, returning a ChefResult.
 
@@ -114,6 +115,7 @@ def run_chef(
                 reason_code=None,
                 result_digest=result_digest,
                 attestation=attestation,
+                order_meta=order_meta,
             )
 
             return ChefResult(
@@ -141,6 +143,7 @@ def run_chef(
             reason_code="EXECUTION_FAILED",
             result_digest=None,
             attestation=None,
+            order_meta=order_meta,
         )
         return ChefResult(
             workspace_path=workspace,

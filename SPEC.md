@@ -1,4 +1,4 @@
-# Sentinel Loop — Vertical Slice Spec (v0.1)
+# Sentinel Loop — Vertical Slice Spec (v0.1, with v0.2 addendum below)
 
 ## What this slice proves
 
@@ -81,3 +81,37 @@ dashboard, external chain anchoring. Each gets a `STUB` note, not code.
 All 10 acceptance tests pass; `verify_ledger.py` validates a real run;
 `PROGRESS.md` at repo root lists every component as BUILT / PARTIAL / STUB
 with one blunt sentence each, and loudly flags everything mocked.
+
+---
+
+## v0.2 addendum — the back office (built after v0.1's definition of done)
+
+v0.1 proved the order path. v0.2 adds the evidence-consumption path the
+essays demand, without changing any v0.1 contract except by append:
+
+1. **Receipts name everyone involved.** Receipt gains `order_meta`
+   `{principal, role, capability_id, ts}` — who/what/when, METADATA ONLY,
+   never args, never content. The verifier's content rule becomes
+   format-evolution-safe: `this_hash` binds every stored key except
+   `this_hash`/`sig` (core 8 still required), so v0.1 rows and v0.2 rows
+   verify on the same unbroken chain and smuggling a new key into an old row
+   breaks it.
+2. **Gateway** (`gateway.py`) — the model-agnostic counter: diner-protocol
+   order JSON in, outcome JSON out, stdin/stdout CLI. NOT a network boundary;
+   no authentication. Any agent process — any model, any language — can place
+   orders holding zero credentials.
+3. **Inspector** (`inspector.py`) — the back office: read-only over the
+   ledger, validates the chain before trusting a row, then surfaces the day
+   in operator language with deterministic findings (off-menu = possible
+   injection, replay, scope, role, rate pressure, execution failures, and an
+   ATTESTATION_IS_MOCK reminder). Pattern SURFACING, not anomaly detection —
+   no baseline, no model; the real anomaly dashboard stays a STUB.
+4. **Adversarial drill** (`curriculum/drill.py`) — the curriculum primitive
+   in miniature: a FIXED probe suite (control + 6 attacks) fired through the
+   real pipeline, every probe receipted, report = "resisted N/6" backed by
+   receipt ids, exit 1 on drift. The continuously-updated, signed, layered
+   curriculum of Essay 6 stays a STUB; this proves its slot.
+
+Still out of scope: Tanaka console UI, FastAPI surface, microVM, TEE,
+provenance-signed kitchen, external chain anchoring, behavioral anomaly
+detection, signed curriculum bundles.

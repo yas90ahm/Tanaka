@@ -59,6 +59,7 @@ class Ledger:
         reason_code: str | None,
         result_digest: str | None,
         attestation: dict | None,
+        order_meta: dict | None = None,
     ) -> Receipt:
         prev_hash = self._head_hash()
 
@@ -70,6 +71,7 @@ class Ledger:
             "reason_code": reason_code,
             "result_digest": result_digest,
             "attestation": attestation,
+            "order_meta": order_meta,
             "prev_hash": prev_hash,
         }
         this_hash = receipt_content_hash(content_dict)
@@ -85,6 +87,7 @@ class Ledger:
             "reason_code": reason_code,
             "result_digest": result_digest,
             "attestation": attestation,
+            "order_meta": order_meta,
             "prev_hash": prev_hash,
             "this_hash": this_hash,
             "sig": sig_b64,
@@ -107,7 +110,16 @@ class Ledger:
             prev_hash=prev_hash,
             this_hash=this_hash,
             sig=raw_sig,
+            order_meta=order_meta,
         )
+
+    def read_all_raw(self) -> list[tuple[int, dict]]:
+        """Every (seq, parsed stored row) in seq order — the raw evidence the
+        inspector's chain check consumes. SELECT only, like everything here."""
+        cur = self._conn.execute(
+            "SELECT seq, json FROM receipts ORDER BY seq ASC"
+        )
+        return [(seq, json.loads(row_json)) for seq, row_json in cur.fetchall()]
 
     def read_all(self) -> list[Receipt]:
         cur = self._conn.execute(
@@ -128,6 +140,8 @@ class Ledger:
                     prev_hash=row["prev_hash"],
                     this_hash=row["this_hash"],
                     sig=base64.b64decode(row["sig"]),
+                    # Rows written before v0.2 lack the key -> None.
+                    order_meta=row.get("order_meta"),
                 )
             )
         return receipts

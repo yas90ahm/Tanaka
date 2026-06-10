@@ -24,7 +24,13 @@ from datetime import datetime, timezone
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from sentinel_slice.spine.canonical import canonical_bytes
-from sentinel_slice.spine.types import Capability, Order, Receipt, Ticket
+from sentinel_slice.spine.types import (
+    Capability,
+    Order,
+    Receipt,
+    Ticket,
+    order_meta_from_order,
+)
 from sentinel_slice.ledger.receipts import Ledger
 from sentinel_slice.cashier.policy import PolicySet
 from sentinel_slice.cashier.store import CashierStore
@@ -63,7 +69,8 @@ def ticket_signable_dict(ticket: Ticket) -> dict:
 def _append_rejection(ledger: Ledger, order: Order, reason_code: str) -> Receipt:
     """Append exactly one REJECTED receipt for `order` with `reason_code`.
     ticket_id / result_digest / attestation are all None so the chain still
-    verifies."""
+    verifies. order_meta names who/what/when so the inspector can read the
+    rejection without the order object."""
     return ledger.append(
         receipt_id="rcpt-" + uuid.uuid4().hex,
         order_id=order.order_id,
@@ -72,6 +79,7 @@ def _append_rejection(ledger: Ledger, order: Order, reason_code: str) -> Receipt
         reason_code=reason_code,
         result_digest=None,
         attestation=None,
+        order_meta=order_meta_from_order(order),
     )
 
 

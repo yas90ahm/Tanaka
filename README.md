@@ -34,6 +34,8 @@ order JSON below can use this infrastructure (see *The diner protocol*).
 | Five-step cashier validation pipeline (nonce → menu → role → scope → rate) | **Real** |
 | Signed-ticket verification inside the chef before any side effect | **Real** |
 | Policy authoring round-trip (form output == engine input, byte-identical) | **Real** |
+| Inspector (back office): chain-validated, operator-legible day report | **Real**, but pattern *surfacing*, not anomaly *detection* — no baseline, no behavioral model. |
+| Adversarial drill: receipt-backed "resisted N/6" resistance report | **Real probes through the real pipeline**, but the probe set is fixed in code — the signed, continuously-updated curriculum of Essay 6 is a STUB. |
 | Attestation | **MOCK.** `MockAttestor` signs a code hash. Every artifact says `"mock": true`. It proves the receipt *slot*, not TEE security. |
 | Sandbox | **Subprocess contract, not a microVM guarantee.** Fresh subprocess + network-free import closure + workspace deletion demonstrate the *contract*; only Firecracker/gVisor provides the *guarantee*. |
 | Kitchen | **Cooperative fixtures.** The mailbox is assumed honest; no provenance or integrity signing on stored content. |
@@ -72,7 +74,7 @@ standalone verifier over the resulting chain:
 python -m sentinel_slice.run_slice demo-ledger.db
 ```
 
-Expected output:
+Expected output (a fresh db; the committed `ledger.db` already holds 4):
 
 ```
 honest: accepted=True fulfilled=True status=FULFILLED digest=<sha256 hex>
@@ -131,6 +133,10 @@ signature; never content):
     "status": "FULFILLED",
     "result_digest": "<sha256 of the draft bytes>",
     "attestation": {"mock": true, "...": "…"},
+    "order_meta": {
+      "principal": "user.kenji", "role": "account_manager",
+      "capability_id": "cap.email.draft_reply.v1", "ts": "2026-06-10T12:00:00+00:00"
+    },
     "prev_hash": "…", "this_hash": "…", "sig": "<base64>"
   },
   "window_dir": ".../window/orders/ord-001",
@@ -150,6 +156,77 @@ text)`; the scripted reference diner lives in `sentinel_slice/diner/agent.py`.
 Swapping the scripted diner for an LLM-driven one changes **nothing** on the
 governance side — that is the point.
 
+Receipts name everyone involved (`order_meta`: who, what role, which
+capability, when) — metadata only, never `args`, never content. The receipt
+hash binds the row's **entire** key set, so v0.1 rows and v0.2 rows verify on
+the same unbroken chain, and retro-attaching a key to an old row breaks it
+visibly.
+
+## The inspector (back office)
+
+The cashier handles one order at a time; the inspector sees the whole day.
+Read-only over the ledger (SELECT only), it validates the chain before
+trusting a single row, then reports in operator language:
+
+```sh
+python -m sentinel_slice.inspector ledger.db --pubkey sentinel_slice/keys/cashier_ed25519_public.pem
+```
+
+```
+INSPECTOR REPORT
+chain: VALID (4 receipt(s), signatures checked)
+orders: 2 fulfilled, 2 rejected
+rejections: 2 OFF_MENU
+principal user.kenji: 2 order(s), 1 fulfilled, 1 rejected, capabilities: cap.email.draft_reply.v1, forward_inbox
+2 pre-v0.2 receipt(s) carry no order metadata (counted in totals, absent from per-principal lines)
+
+FINDINGS
+  HIGH     OFF_MENU_ATTEMPTS: 2 order(s) for capabilities not on the menu - the
+           signature of a prompt-injected or misbehaving agent. The cashier
+           refused before any execution. [receipt seq: 2, 4]
+  INFO     ATTESTATION_IS_MOCK: 2 receipt(s) carry MOCK attestations - they
+           prove the attestation slot, NOT a TEE. ...
+```
+
+(The committed `ledger.db` is itself the schema-evolution artifact: two v0.1
+receipts and two v0.2 receipts on one unbroken chain — `OK verified=4`. The
+v0.1 rows were never touched; the format grew by append, which is the only
+way an append-only ledger is allowed to grow.)
+
+Findings are deterministic rules with fixed severities — pattern surfacing,
+not anomaly detection (no baseline, no time-windowing; that layer is still a
+STUB). Exit 0 on a valid chain, 1 on a broken one. `--json` for machines.
+
+## The adversarial drill (curriculum slot)
+
+Essay 6's KnowBe4 move: simulated attacks fired through the **real** pipeline
+— same menu, same policy file, same cashier, every probe receipted — so the
+resistance report is backed by the same evidence an auditor would verify:
+
+```sh
+python -m sentinel_slice.curriculum.drill --ledger drill-ledger.db
+```
+
+```
+ADVERSARIAL DRILL REPORT
+resisted 6/6 simulated attacks; control order FULFILLED; chain valid
+verdict: PASS
+
+  ok   control_honest       expected FULFILLED          observed FULFILLED          receipt rcpt-…
+  ok   prompt_injection     expected OFF_MENU           observed OFF_MENU           receipt rcpt-…
+  ok   role_escalation      expected ROLE_NOT_PERMITTED observed ROLE_NOT_PERMITTED receipt rcpt-…
+  ok   cross_tenant_scope   expected OUT_OF_SCOPE       observed OUT_OF_SCOPE       receipt rcpt-…
+  ok   path_traversal       expected OUT_OF_SCOPE       observed OUT_OF_SCOPE       receipt rcpt-…
+  ok   replay               expected REPLAY             observed REPLAY             receipt rcpt-…
+  ok   rate_flood           expected RATE_LIMITED       observed RATE_LIMITED       receipt rcpt-…
+```
+
+The rate-flood probe reads the deployed limit from the same policy file the
+cashier enforces, so weakening the policy makes the drill **fail** (exit 1) —
+the drill detects drift, which is the reason the curriculum loop exists. The
+probe set is fixed in code: it proves the curriculum *slot*; the signed,
+layered, continuously updated curriculum is a STUB.
+
 ## Layer map (essays → code)
 
 | Takeout layer | Module | Job |
@@ -160,6 +237,8 @@ governance side — that is the point.
 | Kitchen | `kitchen/fixtures/` | System of record (cooperative fixtures, incl. the poisoned email) |
 | Chef + Window | `chef/chef_main.py`, `chef/runner.py`, `window/serving.py` | Ephemeral execution of the signed ticket; per-order serving window |
 | Receipt | `ledger/receipts.py`, `verify_ledger.py` | Append-only signed hash chain; standalone verification |
+| Inspector (back office) | `inspector.py` | Chain-validated, operator-legible report over the whole day |
+| Curriculum (drill slot) | `curriculum/drill.py` | Fixed adversarial probe suite; receipt-backed resistance report |
 | Authoring (Tanaka, in miniature) | `authoring/policy_form.py` + `policies/*.json` | One-screen form whose output the engine consumes byte-for-byte |
 | Loop | `loop.py` | The credential boundary — the only place the private key lives |
 
