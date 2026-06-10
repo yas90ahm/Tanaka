@@ -97,7 +97,14 @@ def main(argv) -> int:
         return 2
     with open(pubkey_path, "rb") as fh:
         pem_bytes = fh.read()
-    public_key = serialization.load_pem_public_key(pem_bytes)
+    try:
+        public_key = serialization.load_pem_public_key(pem_bytes)
+    except (ValueError, TypeError):
+        print("pubkey file is not a valid PEM public key", file=sys.stderr)
+        return 2
+    if not isinstance(public_key, ed25519.Ed25519PublicKey):
+        print("pubkey is not an Ed25519 public key", file=sys.stderr)
+        return 2
 
     signable = {
         "ticket_id": t["ticket_id"],
@@ -128,16 +135,23 @@ def main(argv) -> int:
     if owner == "" or local == "":
         print("path traversal rejected", file=sys.stderr)
         return 4
+    # local must be a SINGLE safe path component (no separator, no parent ref).
+    # Defense in depth with the cashier scope check: confine the read to the
+    # owner's OWN mailbox subdir so a crafted thread_id cannot cross tenants.
+    if "/" in local or "\\" in local or local in (".", ".."):
+        print("path traversal rejected", file=sys.stderr)
+        return 4
 
     fixtures_root = os.path.realpath(fixtures_root_arg)
-    candidate = os.path.realpath(os.path.join(fixtures_root, owner, local + ".txt"))
+    owner_dir = os.path.realpath(os.path.join(fixtures_root, owner))
+    candidate = os.path.realpath(os.path.join(owner_dir, local + ".txt"))
     try:
-        common = os.path.commonpath([fixtures_root, candidate])
+        common = os.path.commonpath([owner_dir, candidate])
     except ValueError:
         # Different drive on Windows, etc.
         print("path traversal rejected", file=sys.stderr)
         return 4
-    if common != fixtures_root or candidate == fixtures_root:
+    if common != owner_dir or candidate == owner_dir:
         print("path traversal rejected", file=sys.stderr)
         return 4
 

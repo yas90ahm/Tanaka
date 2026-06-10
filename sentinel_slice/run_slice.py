@@ -27,11 +27,17 @@ def main() -> int:
     )
 
     # --- Honest order (on-menu, fulfilled by the chef) ---
+    # Read the outcome from the chef result, NOT read_receipts()[-1]: on a chef
+    # failure the last row is an EXECUTION_FAILED receipt (not the FULFILLED
+    # one), and acceptance never implies a draft exists.
     h = run_honest(loop)
-    fulfilled = loop.read_receipts()[-1]
+    chef = loop.last_chef
+    receipt = chef.receipt if chef is not None else None
+    status = receipt.status if receipt is not None else "NONE"
+    digest = receipt.result_digest if receipt is not None else None
     print(
-        f"honest: accepted={h['accepted']} status={fulfilled.status} "
-        f"digest={fulfilled.result_digest}"
+        f"honest: accepted={h['accepted']} fulfilled={h['fulfilled']} "
+        f"status={status} digest={digest}"
     )
 
     # --- Injected order (off-menu probe, rejected) into the SAME ledger ---

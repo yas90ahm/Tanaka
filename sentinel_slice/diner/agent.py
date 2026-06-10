@@ -67,16 +67,24 @@ def make_injected_order(principal: str, poisoned_email_path: str) -> Order:
 
 def run_honest(loop) -> dict:
     """Place one honest Order and return a plain dict of public results. No
-    Ticket object, no key material is returned — only public ids and the
-    draft bytes the diner is entitled to read back."""
+    Ticket object, no key material is returned — only public ids and the draft
+    bytes the diner is entitled to read back.
+
+    Cashier acceptance does NOT by itself mean the chef produced a draft, so the
+    draft is read back ONLY when the chef actually fulfilled the order
+    (loop.last_chef succeeded). A post-acceptance execution failure yields
+    fulfilled=False and draft=None instead of crashing on a missing file."""
     order = make_honest_order()
     outcome = loop.place(order)
-    draft = None
-    if outcome.accepted:
-        draft = loop.read_window_draft(order.order_id)
+    chef = loop.last_chef
+    fulfilled = bool(
+        outcome.accepted and chef is not None and chef.returncode == 0
+    )
+    draft = loop.read_window_draft(order.order_id) if fulfilled else None
     return {
         "order_id": order.order_id,
         "accepted": outcome.accepted,
+        "fulfilled": fulfilled,
         "draft": draft,
         "ticket_id": outcome.ticket.ticket_id if outcome.accepted else None,
     }

@@ -89,6 +89,14 @@ class SentinelLoop:
         )
         return outcome
 
+    @property
+    def last_chef(self):
+        """The ChefResult from the most recent place() that reached the chef,
+        or None if the cashier rejected the order before spawn. Lets a caller
+        distinguish cashier ACCEPTANCE (outcome.accepted) from chef FULFILLMENT
+        (last_chef.returncode == 0 with a draft) — they are NOT the same."""
+        return self._last_chef
+
     def read_window_draft(self, order_id) -> bytes:
         """Read-only helper for the diner: bytes of the produced draft."""
         return serving.read_draft(order_id, self.window_root)

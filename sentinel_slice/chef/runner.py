@@ -41,7 +41,7 @@ class ChefResult:
     draft_path: str              # <out_dir>/draft.txt
     draft_bytes: bytes | None    # bytes read back from draft.txt on success, else None
     result_digest: str | None    # sha256(draft_bytes).hexdigest() on success, else None
-    receipt: Receipt | None      # the FULFILLED receipt appended, else None
+    receipt: Receipt | None      # FULFILLED on success, else REJECTED/EXECUTION_FAILED
     returncode: int              # the chef subprocess exit code
     stderr: str                  # captured chef stderr (for debugging/forged paths)
 
@@ -57,11 +57,13 @@ def run_chef(
 ) -> ChefResult:
     """Spawn the chef subprocess on `ticket`, returning a ChefResult.
 
-    On chef exit 0: read the draft bytes back, digest them, quote the chef's
-    code measurement via `attestor`, append a FULFILLED receipt, and return it.
-    On any nonzero exit: append NOTHING; surface failure via receipt=None +
-    returncode (does NOT raise). The ephemeral workspace is destroyed on EVERY
-    path."""
+    On chef exit 0 WITH a readable draft: read the draft bytes back, digest
+    them, quote the chef's code measurement via `attestor`, append a FULFILLED
+    receipt, and return it. On any execution failure (nonzero exit, OR exit 0
+    with no draft): append a REJECTED/EXECUTION_FAILED receipt so the
+    cashier-authorized order still leaves an auditable ledger row (SPEC claim 4),
+    and surface failure via returncode + receipt. Never raises on a chef
+    failure. The ephemeral workspace is destroyed on EVERY path."""
     workspace = tempfile.mkdtemp(prefix="chef_ws_")
     try:
         out_dir = serving.window_dir(ticket.order_id, window_root)
@@ -86,9 +88,18 @@ def run_chef(
             cwd=workspace,
         )
 
+        # Success requires BOTH a zero exit AND a readable draft. A chef that
+        # exits 0 without a draft is handled as an execution failure below (so
+        # run_chef never raises and never leaves an accepted order receiptless).
+        draft_bytes = None
         if proc.returncode == 0:
-            with open(draft_path, "rb") as f:
-                draft_bytes = f.read()
+            try:
+                with open(draft_path, "rb") as f:
+                    draft_bytes = f.read()
+            except FileNotFoundError:
+                draft_bytes = None
+
+        if proc.returncode == 0 and draft_bytes is not None:
             result_digest = hashlib.sha256(draft_bytes).hexdigest()
 
             with open(CHEF_MAIN, "rb") as f:
@@ -116,14 +127,28 @@ def run_chef(
                 stderr=proc.stderr,
             )
 
-        # Nonzero exit: append no receipt, do not raise.
+        # Execution failure (nonzero exit, OR exit 0 with no readable draft):
+        # the cashier already authorized and signed this order, so it STILL gets
+        # a chained receipt for audit-legibility (SPEC claim 4: every order
+        # produces a receipt). EXECUTION_FAILED is beyond SPEC's reason_code
+        # enum (documented in PROGRESS.md, like RATE_LIMITED). No content,
+        # no digest, no attestation — a failed execution produced no result.
+        receipt = ledger.append(
+            receipt_id="rcpt-" + uuid.uuid4().hex,
+            order_id=ticket.order_id,
+            ticket_id=ticket.ticket_id,
+            status="REJECTED",
+            reason_code="EXECUTION_FAILED",
+            result_digest=None,
+            attestation=None,
+        )
         return ChefResult(
             workspace_path=workspace,
             out_dir=out_dir,
             draft_path=draft_path,
             draft_bytes=None,
             result_digest=None,
-            receipt=None,
+            receipt=receipt,
             returncode=proc.returncode,
             stderr=proc.stderr,
         )

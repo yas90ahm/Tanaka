@@ -135,8 +135,15 @@ def process_order(
         return RejectionOutcome(
             accepted=False, ticket=None, reason_code="OUT_OF_SCOPE", receipt=receipt
         )
-    owner = tid.split("/", 1)[0]
-    if owner == "" or owner != order.principal:
+    owner, local = tid.split("/", 1)
+    # owner must be the acting principal, AND the local segment must be a SINGLE
+    # safe path component — no nested path, no separator, no parent ref — so a
+    # crafted thread_id like "user.kenji/../victim/secret" cannot traverse out of
+    # the principal's own queue into another tenant's mailbox (cross-tenant read).
+    local_unsafe = (
+        local == "" or "/" in local or "\\" in local or local in (".", "..")
+    )
+    if owner == "" or owner != order.principal or local_unsafe:
         receipt = _append_rejection(ledger, order, "OUT_OF_SCOPE")
         return RejectionOutcome(
             accepted=False, ticket=None, reason_code="OUT_OF_SCOPE", receipt=receipt

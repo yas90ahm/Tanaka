@@ -73,18 +73,33 @@ def main(argv):
     db_path = argv[1]
     pem_path = argv[2]
 
-    with open(pem_path, "rb") as fh:
-        pem_bytes = fh.read()
-    public_key = serialization.load_pem_public_key(pem_bytes)
+    try:
+        with open(pem_path, "rb") as fh:
+            pem_bytes = fh.read()
+        public_key = serialization.load_pem_public_key(pem_bytes)
+    except (OSError, ValueError):
+        # Missing file, non-PEM, or a private-key PEM -> a usage error, NOT a
+        # ledger-integrity failure. Exit 2, never a traceback.
+        print("usage: cannot read an Ed25519 public key from {}".format(pem_path))
+        return 2
     if not isinstance(public_key, ed25519.Ed25519PublicKey):
         print("usage: public key is not an Ed25519 public key")
         return 2
 
-    conn = sqlite3.connect(db_path)
+    try:
+        conn = sqlite3.connect(db_path)
+    except sqlite3.OperationalError as exc:
+        print("usage: cannot open ledger db {}: {}".format(db_path, exc))
+        return 2
     try:
         cur = conn.cursor()
         cur.execute("SELECT seq, json FROM receipts ORDER BY seq ASC")
         rows = cur.fetchall()
+    except sqlite3.OperationalError as exc:
+        # Wrong/corrupt sqlite file or one lacking a `receipts` table -> usage
+        # error with a one-line message, never an uncaught traceback.
+        print("usage: cannot read receipts table from {}: {}".format(db_path, exc))
+        return 2
     finally:
         conn.close()
 

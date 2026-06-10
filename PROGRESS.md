@@ -34,16 +34,43 @@ sentinel_slice/keys/cashier_ed25519_public.pem` prints `OK verified=2` and exits
 
 ## Spec-gap resolutions (flagged, not silently worked around)
 
-- **FLAG A — `RATE_LIMITED` is beyond the SPEC enum.** SPEC's `reason_code`
-  list is `OFF_MENU | ROLE_NOT_PERMITTED | OUT_OF_SCOPE | REPLAY`, but the
-  validation pipeline has a 5th step (rate limit) with no enumerated code. We
-  emit `RATE_LIMITED`. Documented inline in `cashier/engine.py`.
+- **FLAG A — reason codes beyond the SPEC enum.** SPEC's `reason_code` list is
+  `OFF_MENU | ROLE_NOT_PERMITTED | OUT_OF_SCOPE | REPLAY`, but the system emits
+  two more: `RATE_LIMITED` (the pipeline's 5th/rate step, documented in
+  `cashier/engine.py`) and `EXECUTION_FAILED` (a post-acceptance chef failure;
+  see "post-review hardening" below, documented in `chef/runner.py`).
 - **FLAG B — `scoped_args` carries `thread_id`, not a fixture path.**
   ARCHITECTURE says the chef "reads the path named in scoped_args," but the
   cashier must stay kitchen-blind and cannot know fixture paths. SPEC wins:
   `scoped_args == {"thread_id": "<owner>/<local>"}`; the chef resolves the path
   under a fixtures root with a traversal guard. The cashier decides scope purely
   from `order.principal` vs the `thread_id` namespace.
+
+## Post-review hardening (high-effort recall code review)
+
+A multi-agent recall review surfaced 10 findings, all on failure/adversarial
+paths (the happy path the tests cover was clean). All 10 are fixed, each with a
+regression test (`tests/test_fix_*.py`); suite is now 54 passing.
+
+- **Cross-tenant scope escape (security) — FIXED.** A crafted
+  `thread_id="user.kenji/../victim/secret"` previously passed the cashier
+  (owner-prefix only) and the chef's `commonpath` guard (which only blocked
+  escaping `fixtures_root`, not crossing tenant dirs inside it), letting the
+  acting principal read another tenant's mailbox. Now: the cashier rejects any
+  non-single-segment local part (`OUT_OF_SCOPE`), and the chef confines reads to
+  `<fixtures_root>/<owner>/`.
+- **Accepted order could leave no receipt — FIXED.** A nonzero chef exit (or
+  exit 0 without a draft) after cashier acceptance appended nothing, so an
+  authorized order had zero ledger rows (violating "every order produces a
+  receipt") and crashed the diner/`run_slice`. Now `run_chef` always appends a
+  receipt — FULFILLED on success, else REJECTED/`EXECUTION_FAILED` — `loop`
+  exposes `last_chef` so callers distinguish acceptance from fulfillment, and
+  the diner reads the draft only when the chef actually fulfilled.
+- **Robust exit codes — FIXED.** `chef_main` now rejects a non-Ed25519 or
+  malformed pubkey with the documented usage exit 2 (was an uncaught
+  TypeError/ValueError → exit 1). `verify_ledger` returns usage exit 2 (one-line
+  message, no traceback) for a missing/non-PEM/private-key pubkey arg or a db
+  lacking a `receipts` table.
 
 ## Known wrinkles (honest disclosure, not defects)
 
