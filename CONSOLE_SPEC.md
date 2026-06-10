@@ -241,9 +241,19 @@ expressed through the audited policy path, plus one explicit switch:
    `cap.payment.initiate.v1` example added. Inspector knows the new reason
    code. Entry point `sentinel-verify-policy` added.
 2. **JSON API, headless.** All endpoints above, driven by tests only (no
-   browser). Separation-of-duties + second-admin enforced. STOP. ← NEXT
+   browser). Separation-of-duties + second-admin enforced.
+   **— DONE (v0.3 phase 2).** `console/auth.py` (MOCK identity: token→Admin,
+   author/reviewer roles), `console/service.py` (all logic + auth, transport-
+   free: capabilities/policies/simulate/publish/approve/rollback/activity/
+   receipt/run_drill, typed errors), `console/server.py` (stdlib
+   single-threaded HTTP over 127.0.0.1, header token, exception→status
+   mapping, `build_default_service` + `make_server` + `sentinel-console`).
+   Second-admin gate (requires_second_admin → pending until a *different*
+   reviewer approves) and separation of duties are enforced and tested;
+   Simulate is proven to write nothing; the policy history a session produces
+   verifies standalone. 104 tests green.
 3. **The glass.** One static page, three screens, vanilla JS against the API.
-   Manual run-through + the stdlib e2e test. STOP.
+   Manual run-through + the stdlib e2e test. STOP. ← NEXT
 
 ## What this explicitly does NOT make real (unchanged stubs)
 

@@ -33,6 +33,11 @@ sentinel_slice/window/orders/
 # Scratch tempdirs if any land in-tree.
 *.tmp/
 tmp/
+# Console runtime: materialized active policy + the default policy-history db.
+sentinel_slice/console/active_policies/
+policy_history.db
+drill-*.db
+drill-*-win/
 
 # NOTE: ledger.db is intentionally NOT ignored. The "definition of done"
 # requires committing a real run's ledger.db alongside verify_ledger.py output.

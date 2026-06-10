@@ -4,7 +4,7 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 93 passing (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**Tests:** 104 passing (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
 v0.1 run (one honest order + one injected probe) PLUS a v0.2-format run
 appended on the SAME unbroken chain (schema evolution by append, never
@@ -172,10 +172,37 @@ phase is engine-only: no UI, no HTTP yet.
   — inputs the console coaches/gates from, NOT new enforcement. Example
   high-risk `cap.payment.initiate.v1` (requires_second_admin) added so the
   catalog/warnings have something real.
-- **STILL STUB:** the console HTTP API (phase 2), the glass/UI (phase 3), the
-  mock identity provider + separation-of-duties enforcement, simulate/publish/
-  approve/rollback endpoints. The engine can now support all of these; none is
-  wired yet.
+## v0.3 phase 2 — Tanaka console JSON API (headless; UI still phase 3)
+
+The operator control loop, end to end over HTTP — no browser yet.
+
+- **`console/auth.py` — BUILT (MOCK identity).** Token→Admin lookup with two
+  roles (author, reviewer). LOUDLY FLAGGED as a mock: no password, session,
+  SSO, or expiry — only the identity SOURCE is mocked. The separation-of-
+  duties enforcement built on it is REAL. Real deployments swap `resolve()`
+  for SSO/OIDC.
+- **`console/service.py` — BUILT.** All console logic, transport-free (so a
+  FastAPI surface later calls it unchanged): capabilities, policies, simulate,
+  publish, approve, rollback, activity, receipt, run_drill. Trust boundaries
+  preserved — Simulate runs the pure `evaluate_order` (no writes, proven by
+  test); activity/receipt read the content-free ledger; the console writes
+  only the signed policy store; the drill uses a scratch ledger.
+- **Separation of duties — REAL and enforced.** Author may simulate/publish/
+  rollback; reviewer may approve. A capability flagged requires_second_admin
+  publishes as PENDING and does not change the active policy until a
+  *different* reviewer approves (same-admin and wrong-role approvals are
+  rejected; tested).
+- **`console/server.py` — BUILT.** Stdlib single-threaded HTTP on 127.0.0.1
+  (single-threaded ON PURPOSE: serializes appends so the policy chain cannot
+  fork). Routes all endpoints, token via `X-Admin-Token`, maps typed errors to
+  401/403/404/409/400. `sentinel-console` entry point + `sentinel-verify-policy`.
+  An e2e test drives author→simulate→publish→approve→activity over a real
+  socket and verifies the resulting policy history standalone.
+- **STILL STUB:** the glass/UI (phase 3 — one static page, three screens). The
+  API is complete and tested; only the browser front-end remains. Also still
+  mocked/stub below the console: TEE attestation, microVM, provenance kitchen,
+  real SSO, live session/runtime revocation, anomaly baseline, signed
+  curriculum, external anchoring.
 
 ## Known wrinkles (honest disclosure, not defects)
 

@@ -71,7 +71,11 @@ class PolicyStore:
 
     def __init__(self, db_path: str, private_key: Ed25519PrivateKey) -> None:
         self._private_key = private_key
-        self._conn = sqlite3.connect(db_path)
+        # check_same_thread=False: the console server is constructed in one
+        # thread and serves requests in another. Safe because the server is
+        # single-threaded (see console/server.make_server) — appends are never
+        # concurrent, they are serialized one request at a time.
+        self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.execute(_CREATE_TABLE_SQL)
         self._conn.commit()
 
