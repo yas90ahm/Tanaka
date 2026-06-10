@@ -1,0 +1,9 @@
+{
+  "id": "cap.email.draft_reply.v1",
+  "name": "Draft email reply",
+  "inputs": {"thread_id": "string"},
+  "outputs": {"draft": "text"},
+  "side_effects": "none",
+  "scope": "own_queue",
+  "risk_class": "low"
+}

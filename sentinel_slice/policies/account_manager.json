@@ -1,0 +1,9 @@
+{
+  "policies": [
+    {
+      "role": "account_manager",
+      "allowed_capabilities": ["cap.email.draft_reply.v1"],
+      "rate_limit_per_hour": 5
+    }
+  ]
+}
