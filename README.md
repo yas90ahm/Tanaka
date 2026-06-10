@@ -336,3 +336,10 @@ single capability → operator-curated catalog. The thesis behind the design
 lives in the agent-infrastructure essay series (trust paradox → agent OS →
 takeout model → operator-as-buyer → threat surface → continuous curriculum →
 institutional layer).
+
+## License
+
+Apache-2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE). Permissive, with a
+patent grant; you may use, modify, and redistribute, including commercially,
+provided you keep the notices. Contributions are accepted under the same
+license with a DCO sign-off (see [CONTRIBUTING.md](CONTRIBUTING.md)).

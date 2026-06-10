@@ -1,0 +1,16 @@
+Sentinel Loop — agent-governance vertical slice
+Copyright 2026 Yasir Qureshi
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product bundles no third-party source. Its sole runtime dependency,
+`cryptography` (Apache-2.0 / BSD), is installed separately via pip and is not
+redistributed here.
+
+IMPORTANT — what this software is NOT:
+This is a vertical slice that proves an architecture, not a hardened product.
+Attestation is MOCKED (MockAttestor signs a code hash, not a TEE quote), the
+chef "sandbox" is a subprocess contract rather than a microVM guarantee, the
+kitchen is cooperative fixtures, and the console identity provider is a static
+token table. See PROGRESS.md for the full, unsoftened list. Do not deploy it
+as a security control without replacing those layers.
