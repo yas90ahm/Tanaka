@@ -69,6 +69,7 @@ class ConsoleService:
         policy_store,
         policies_dir: str,
         catalog: dict[str, Capability],
+        custom_dir: str | None = None,
     ) -> None:
         self._private_key = private_key
         self._public_key_pem_path = public_key_pem_path
@@ -78,6 +79,21 @@ class ConsoleService:
         self._policy_store = policy_store
         self._policies_dir = policies_dir
         self._catalog = catalog
+        # When set, the menu is live-loaded from disk (built-in + this operator
+        # custom dir) so menu curation is reflected immediately; menu-curation
+        # endpoints require it.
+        self._custom_dir = custom_dir
+
+    def _live_catalog(self, *, include_disabled: bool = False) -> dict:
+        """The current catalog. If a custom dir is configured, reload from disk
+        (so operator-created capabilities appear without a restart); else the
+        static catalog passed at construction."""
+        if self._custom_dir is None:
+            return self._catalog
+        from sentinel_slice.menu.catalog import load_catalog
+
+        return load_catalog(custom_dir=self._custom_dir,
+                            include_disabled=include_disabled)
 
     # ---------- auth helpers ----------
     @staticmethod
@@ -135,9 +151,10 @@ class ConsoleService:
         """Capability ids in the candidate that the catalog marks
         requires_second_admin — the gate for the pending/approval workflow."""
         flagged = set()
+        cat = self._live_catalog()
         for p in policies:
             for cap_id in p.get("allowed_capabilities", []):
-                cap = self._catalog.get(cap_id)
+                cap = cat.get(cap_id)
                 if cap is not None and cap.requires_second_admin:
                     flagged.add(cap_id)
         return sorted(flagged)
@@ -157,7 +174,7 @@ class ConsoleService:
     def capabilities(self, admin) -> dict:
         self._require_any_role(admin)
         items = []
-        for cap in self._catalog.values():
+        for cap in self._live_catalog().values():
             items.append(
                 {
                     "id": cap.id,
@@ -250,7 +267,7 @@ class ConsoleService:
                 ts="simulation",
             )
             decision = evaluate_order(
-                order, menu=self._catalog, policy_set=pset, store=store
+                order, menu=self._live_catalog(), policy_set=pset, store=store
             )
             results.append(
                 {
@@ -354,7 +371,7 @@ class ConsoleService:
             loop = SentinelLoop(
                 private_key=self._private_key,
                 ledger=ledger,
-                menu=self._catalog,
+                menu=self._live_catalog(),
                 policy_set=pset,
                 store=CashierStore(),
                 public_key_pem_path=self._public_key_pem_path,
@@ -365,3 +382,117 @@ class ConsoleService:
             return _run_drill(loop, _POISONED)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+
+    # ---------- menu curation (no-code) ----------
+    def _require_menu_curation(self):
+        if self._custom_dir is None:
+            raise ConflictError("menu curation is not configured (no custom dir)")
+
+    def _builtin_ids(self) -> set:
+        from sentinel_slice.menu.catalog import CAPABILITIES_DIR, load_catalog
+
+        return set(load_catalog(CAPABILITIES_DIR, include_disabled=True))
+
+    def templates(self, admin) -> dict:
+        """The building blocks an operator composes menu items from."""
+        self._require_any_role(admin)
+        from sentinel_slice.menu.templates import TEMPLATES
+
+        out = []
+        for behavior, t in sorted(TEMPLATES.items()):
+            out.append({
+                "behavior": behavior,
+                "label": t["label"],
+                "summary": t["summary"],
+                "default_risk": t["default_risk"],
+                "side_effects": t["side_effects"],
+                "default_requires_user_confirmation":
+                    t["default_requires_user_confirmation"],
+                "default_requires_second_admin": t["default_requires_second_admin"],
+                "default_recommended_max_rate": t["default_recommended_max_rate"],
+            })
+        return {"templates": out}
+
+    def menu(self, admin) -> dict:
+        """The whole menu for the curation screen: every capability incl.
+        disabled ones, flagged built-in (locked) vs operator-created (editable)."""
+        self._require_any_role(admin)
+        from sentinel_slice.menu.catalog import load_catalog
+
+        if self._custom_dir is None:
+            cat = self._catalog
+        else:
+            cat = load_catalog(custom_dir=self._custom_dir, include_disabled=True)
+        builtin = self._builtin_ids()
+        items = []
+        for cap in sorted(cat.values(), key=lambda c: c.id):
+            items.append({
+                "id": cap.id,
+                "name": cap.name,
+                "behavior": cap.resolved_behavior(),
+                "risk_class": cap.risk_class,
+                "side_effects": cap.side_effects,
+                "enabled": cap.enabled,
+                "requires_user_confirmation": cap.requires_user_confirmation,
+                "requires_second_admin": cap.requires_second_admin,
+                "editable": cap.id not in builtin,   # built-ins are locked
+            })
+        return {"capabilities": items}
+
+    def create_capability(self, admin, form) -> dict:
+        """Compose a new menu item from a template + form fields. No code, no
+        JSON. Author only."""
+        self._require_role(admin, ROLE_AUTHOR)
+        self._require_menu_curation()
+        from sentinel_slice.menu.builder import CapabilityBuildError, build_descriptor
+        from sentinel_slice.menu.catalog import save_custom_capability
+
+        if not isinstance(form, dict):
+            raise BadRequestError("expected a capability form object")
+        try:
+            descriptor = build_descriptor(
+                behavior=form.get("behavior"),
+                capability_id=form.get("capability_id"),
+                name=form.get("name", ""),
+                description=form.get("description", ""),
+                risk_class=form.get("risk_class"),
+                recommended_max_rate=form.get("recommended_max_rate"),
+                requires_user_confirmation=form.get("requires_user_confirmation"),
+                requires_second_admin=form.get("requires_second_admin"),
+                enabled=form.get("enabled", True),
+            )
+        except CapabilityBuildError as exc:
+            raise BadRequestError(str(exc))
+        try:
+            save_custom_capability(descriptor, self._custom_dir)
+        except ValueError as exc:
+            raise ConflictError(str(exc))
+        return {"created": descriptor["id"], "behavior": descriptor["behavior"],
+                "enabled": descriptor["enabled"]}
+
+    def set_capability_enabled(self, admin, capability_id, enabled) -> dict:
+        self._require_role(admin, ROLE_AUTHOR)
+        self._require_menu_curation()
+        from sentinel_slice.menu.catalog import set_custom_capability_enabled
+
+        if capability_id in self._builtin_ids():
+            raise ConflictError("built-in capabilities can't be toggled here")
+        try:
+            set_custom_capability_enabled(
+                capability_id, bool(enabled), self._custom_dir)
+        except ValueError as exc:
+            raise NotFoundError(str(exc))
+        return {"id": capability_id, "enabled": bool(enabled)}
+
+    def delete_capability(self, admin, capability_id) -> dict:
+        self._require_role(admin, ROLE_AUTHOR)
+        self._require_menu_curation()
+        from sentinel_slice.menu.catalog import delete_custom_capability
+
+        if capability_id in self._builtin_ids():
+            raise ConflictError("built-in capabilities can't be deleted")
+        try:
+            delete_custom_capability(capability_id, self._custom_dir)
+        except ValueError as exc:
+            raise NotFoundError(str(exc))
+        return {"deleted": capability_id}

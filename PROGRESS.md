@@ -4,7 +4,7 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 131 passing, 1 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**Tests:** 144 passing, 1 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
 The skip is the ContainerSandbox Docker integration test, which runs only where
 a container runtime is present (not on Windows / minimal CI).
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
@@ -333,6 +333,35 @@ The chef was hardcoded to one transform; now it's a general action broker.
   output; one file, content varies by capability).
 - **Extension is 3 steps** (descriptor JSON + handler + policy grant), no core
   changes — documented in README "Adding a capability".
+
+## v0.7 — no-code menu curation (a non-technical operator owns the menu)
+
+Splits a menu item into a BEHAVIOR (code template, shipped by engineers) and a
+CAPABILITY (a configured instance, composed by the operator). The only step
+that needs an engineer is a brand-new behavior; composing/tuning/toggling menu
+items is point-and-fill.
+
+- **Behaviors engine — BUILT.** `Capability.behavior` + `enabled`; the cashier
+  signs the resolved behavior into the ticket; the standalone chef dispatches
+  on the signed behavior, so many capabilities share one behavior. `_HANDLERS`
+  keyed by behavior; unknown behavior -> exit 5.
+- **`menu/templates.py` + `menu/builder.py` — BUILT.** Operator-facing
+  templates (label, what it reads/produces, safe defaults) and a pure
+  `build_descriptor(form) -> descriptor` (no JSON authored by hand). A
+  capability made from a form executes end to end (tested).
+- **Catalog curation — BUILT.** `load_catalog` merges built-in + an operator
+  custom dir, returns the ENABLED menu (disabled -> off menu);
+  save/enable-disable/delete custom capabilities (tool-written, never
+  hand-edited); built-in ids can't be shadowed or toggled; duplicate ids
+  refused.
+- **Console Menu screen — BUILT.** `console/service.py` gains templates / menu
+  / create_capability / set_capability_enabled / delete_capability (author
+  only; reviewers read). `console/server.py` routes them; the static console
+  gains a **Menu** screen — pick a building block, name it, set care level,
+  add it; turn items on/off; remove. Plain language for a non-technical
+  operator; built-ins shown locked. Verified over HTTP. The default service +
+  build_default wire the custom dir so operator capabilities join the live
+  menu.
 
 ## STILL mocked / STUB below the console (unchanged)
 

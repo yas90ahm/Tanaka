@@ -89,6 +89,7 @@
 
   <nav>
     <button data-screen="capabilities" class="active">Capabilities</button>
+    <button data-screen="menu">Menu</button>
     <button data-screen="policies">Policies</button>
     <button data-screen="activity">Activity</button>
   </nav>
@@ -102,6 +103,51 @@
         <th>Capability</th><th>Risk</th><th>Side effects</th>
         <th>Rec. max rate</th><th>2nd admin</th><th>Description</th>
       </tr></thead><tbody></tbody></table>
+    </section>
+
+    <section class="screen" id="screen-menu">
+      <p class="muted">The menu is what agents can order. Add an item from a
+        ready-made building block, switch items on or off, no code or files.</p>
+
+      <div class="card">
+        <strong>Add a menu item</strong>
+        <div class="muted">Pick what it should do, give it a name, set how
+          careful to be. Built-in items are locked; your items are editable.</div>
+        <div class="row">
+          <label>What it does
+            <select id="newBehavior"></select>
+          </label>
+        </div>
+        <div id="behaviorSummary" class="muted"></div>
+        <div class="row">
+          <label>Name <input type="text" id="newName" size="26" placeholder="e.g. Summarize contracts"></label>
+        </div>
+        <div class="row">
+          <label>Short id <input type="text" id="newId" size="30" placeholder="e.g. cap.contracts.summarize.v1"></label>
+        </div>
+        <div class="row">
+          <label>Care level
+            <select id="newRisk">
+              <option value="">(default for this building block)</option>
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+          </label>
+          <label> · ask the user first
+            <input type="checkbox" id="newConfirm"></label>
+          <label> · needs a second admin
+            <input type="checkbox" id="newSecond"></label>
+        </div>
+        <div class="row"><button id="createCap">Add to menu</button></div>
+      </div>
+
+      <div class="card">
+        <strong>Current menu</strong>
+        <table id="menuTable"><thead><tr>
+          <th>Item</th><th>Does</th><th>Risk</th><th>On menu</th><th></th>
+        </tr></thead><tbody></tbody></table>
+      </div>
     </section>
 
     <section class="screen" id="screen-policies">

@@ -39,21 +39,28 @@ two deployments from one engine: enterprise agents over systems-of-record (the
 Tanaka console), and computer-use agents on a personal machine (consumer mode,
 below).
 
-### Adding a capability
+### Curating the menu — who does what
 
-Three steps, no change to the cashier/ledger/chef plumbing:
+A menu item is two halves: a **behavior** (the code that performs the action)
+and a **capability** (a configured menu item that uses a behavior). They have
+different owners:
 
-1. **Descriptor** — drop a `capabilities/<id>.json` declaring `inputs`,
-   `outputs`, `side_effects`, `scope`, `risk_class`, and (optionally)
-   `scoped_input` (which arg holds the namespaced `<owner>/<local>` resource;
-   default `thread_id`), `recommended_max_rate`, `requires_second_admin`,
-   `requires_user_confirmation`.
-2. **Handler** — add one pure `(_resource, source_text) -> output_text`
-   transform to the dispatch table in `chef/chef_main.py`. Deterministic, no
-   network, no model.
-3. **Grant** — allow a role to use it in policy (via the console, or the
-   policy file). Done — it now has bounding, privacy, receipts, simulation,
-   and the kill switch. The agents that will eventually sit in the
+- **Behaviors are built by engineers, once.** A behavior is a pure
+  `(_resource, source_text) -> output_text` transform in the dispatch table in
+  `chef/chef_main.py`, plus an operator-facing entry in `menu/templates.py`.
+  This is the only step that needs code. The slice ships three:
+  `draft_reply`, `docs_summarize`, `payment_request`.
+- **Capabilities are composed by a non-technical operator, no code, no JSON.**
+  In the console's **Menu** screen they pick a behavior ("Summarize a
+  document"), name it, set the care level (risk / ask-first / second-admin)
+  and rate, and **Add to menu**. They can turn items on/off and remove them.
+  Built-in items are shown locked. The capability is a real menu item that
+  runs immediately, because it reuses a vetted behavior.
+
+So a 59-year-old compliance officer curates the menu by clicking and filling in
+a short form; an engineer is only needed when a genuinely new *kind* of action
+must exist. (Under the hood the builder writes the descriptor for you; nothing
+is hand-edited.) The agents that will eventually sit in the
 diner seat are **model-agnostic by construction**: anything that can emit the
 order JSON below can use this infrastructure (see *The diner protocol*).
 

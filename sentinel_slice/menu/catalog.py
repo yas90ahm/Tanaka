@@ -79,6 +79,8 @@ def save_custom_capability(descriptor: dict, custom_dir: str | None = None) -> s
         raise ValueError("id {!r} is a built-in capability".format(cap_id))
     os.makedirs(target_dir, exist_ok=True)
     path = os.path.join(target_dir, cap_id + ".json")
+    if os.path.exists(path):
+        raise ValueError("a capability with id {!r} already exists".format(cap_id))
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(descriptor, fh, indent=2, sort_keys=True)
         fh.write("\n")

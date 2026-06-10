@@ -47,6 +47,7 @@ document.querySelectorAll("nav button").forEach((b) => {
     document.querySelectorAll(".screen").forEach((s) => s.classList.remove("active"));
     $("screen-" + b.dataset.screen).classList.add("active");
     if (b.dataset.screen === "capabilities") loadCapabilities();
+    if (b.dataset.screen === "menu") loadMenu();
     if (b.dataset.screen === "policies") loadPolicies();
     if (b.dataset.screen === "activity") loadActivity();
   });
@@ -74,6 +75,91 @@ async function loadCapabilities() {
       tb.appendChild(tr);
     }
     msg("");
+  } catch (e) { msg(e.message, "bad"); }
+}
+
+/* ---------- menu curation ---------- */
+let TEMPLATES = [];
+
+async function loadMenu() {
+  try {
+    TEMPLATES = (await api("GET", "/api/menu/templates")).templates;
+    const sel = $("newBehavior");
+    sel.innerHTML = TEMPLATES.map((t) =>
+      `<option value="${esc(t.behavior)}">${esc(t.label)}</option>`).join("");
+    showBehaviorSummary();
+
+    const data = await api("GET", "/api/menu");
+    const tb = $("menuTable").querySelector("tbody");
+    tb.innerHTML = "";
+    for (const c of data.capabilities) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        `<td><code>${esc(c.id)}</code><br><span class="muted">${esc(c.name)}</span></td>` +
+        `<td>${esc(c.behavior)}</td>` +
+        `<td><span class="pill risk-${esc(c.risk_class)}">${esc(c.risk_class)}</span></td>` +
+        `<td class="${c.enabled ? "ok" : "bad"}">${c.enabled ? "on" : "off"}</td>` +
+        `<td></td>`;
+      const actions = tr.lastChild;
+      if (c.editable) {
+        const toggle = document.createElement("button");
+        toggle.className = "ghost";
+        toggle.textContent = c.enabled ? "Turn off" : "Turn on";
+        toggle.addEventListener("click", () => toggleCap(c.id, !c.enabled));
+        const del = document.createElement("button");
+        del.className = "ghost"; del.textContent = "Remove";
+        del.addEventListener("click", () => removeCap(c.id));
+        actions.appendChild(toggle);
+        actions.appendChild(document.createTextNode(" "));
+        actions.appendChild(del);
+      } else {
+        actions.innerHTML = '<span class="muted">built-in (locked)</span>';
+      }
+      tb.appendChild(tr);
+    }
+    msg("");
+  } catch (e) { msg(e.message, "bad"); }
+}
+
+function showBehaviorSummary() {
+  const t = TEMPLATES.find((x) => x.behavior === $("newBehavior").value);
+  $("behaviorSummary").textContent = t ? t.summary : "";
+}
+document.addEventListener("change", (e) => {
+  if (e.target && e.target.id === "newBehavior") showBehaviorSummary();
+});
+
+$("createCap").addEventListener("click", async () => {
+  const form = {
+    behavior: $("newBehavior").value,
+    capability_id: $("newId").value.trim(),
+    name: $("newName").value.trim(),
+    requires_user_confirmation: $("newConfirm").checked,
+    requires_second_admin: $("newSecond").checked,
+  };
+  const risk = $("newRisk").value;
+  if (risk) form.risk_class = risk;
+  try {
+    const res = await api("POST", "/api/menu/capabilities", form);
+    msg(`Added “${res.created}” to the menu.`, "ok");
+    $("newName").value = ""; $("newId").value = "";
+    loadMenu();
+  } catch (e) { msg(e.message, "bad"); }
+});
+
+async function toggleCap(id, enabled) {
+  try {
+    await api("POST", `/api/menu/capabilities/${encodeURIComponent(id)}/${enabled ? "enable" : "disable"}`);
+    loadMenu();
+  } catch (e) { msg(e.message, "bad"); }
+}
+
+async function removeCap(id) {
+  if (!confirm("Remove " + id + " from the menu?")) return;
+  try {
+    await api("POST", `/api/menu/capabilities/${encodeURIComponent(id)}/delete`);
+    msg("Removed " + id + ".", "ok");
+    loadMenu();
   } catch (e) { msg(e.message, "bad"); }
 }
 

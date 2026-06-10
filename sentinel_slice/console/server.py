@@ -145,6 +145,10 @@ def make_handler(service, registry: AdminRegistry):
                     return service.activity(admin)
                 if path.startswith("/api/receipt/"):
                     return service.receipt(admin, _int_tail(path))
+                if path == "/api/menu/templates":
+                    return service.templates(admin)
+                if path == "/api/menu":
+                    return service.menu(admin)
                 raise _not_found(path)
             if method == "POST":
                 body = self._body()
@@ -167,6 +171,16 @@ def make_handler(service, registry: AdminRegistry):
                     return service.approve(admin, seq)
                 if path == "/api/drill/run":
                     return service.run_drill(admin)
+                if path == "/api/menu/capabilities":
+                    return service.create_capability(admin, body)
+                if path.startswith("/api/menu/capabilities/") and path.endswith("/enable"):
+                    return service.set_capability_enabled(
+                        admin, _str_segment(path, -2), True)
+                if path.startswith("/api/menu/capabilities/") and path.endswith("/disable"):
+                    return service.set_capability_enabled(
+                        admin, _str_segment(path, -2), False)
+                if path.startswith("/api/menu/capabilities/") and path.endswith("/delete"):
+                    return service.delete_capability(admin, _str_segment(path, -2))
                 raise _not_found(path)
             raise _not_found(path)
 
@@ -205,6 +219,15 @@ def _int_segment(path, index):
         raise _BR("expected an integer path segment in {}".format(path))
 
 
+def _str_segment(path, index):
+    from sentinel_slice.console.service import BadRequestError as _BR
+
+    try:
+        return path.strip("/").split("/")[index]
+    except IndexError:
+        raise _BR("missing path segment in {}".format(path))
+
+
 def make_server(service, registry, host="127.0.0.1", port=0):
     """Build a single-threaded HTTPServer bound to host:port (port 0 =
     ephemeral). Single-threaded ON PURPOSE: it serializes requests so the
@@ -229,7 +252,7 @@ def build_default_service(
 
     from sentinel_slice.authoring.policy_store import PolicyStore
     from sentinel_slice.console.service import ConsoleService
-    from sentinel_slice.menu.catalog import load_catalog
+    from sentinel_slice.menu.catalog import CUSTOM_CAPABILITIES_DIR, load_catalog
 
     sentinel_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if keys_dir is None:
@@ -254,7 +277,8 @@ def build_default_service(
         ledger_db_path=ledger_db_path,
         policy_store=PolicyStore(policy_db_path, private_key),
         policies_dir=policies_dir,
-        catalog=load_catalog(),
+        catalog=load_catalog(custom_dir=CUSTOM_CAPABILITIES_DIR, include_disabled=True),
+        custom_dir=CUSTOM_CAPABILITIES_DIR,
     )
 
 
