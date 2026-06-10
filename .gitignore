@@ -40,6 +40,8 @@ drill-*.db
 drill-*-win/
 # Personal permissions file written by the consumer permissions editor.
 sentinel_permissions.json
+# Operator-created (no-code) capabilities written by the menu builder.
+sentinel_slice/capabilities_custom/
 
 # NOTE: ledger.db is intentionally NOT ignored. The "definition of done"
 # requires committing a real run's ledger.db alongside verify_ledger.py output.

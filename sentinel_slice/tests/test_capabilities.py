@@ -137,6 +137,7 @@ def test_unknown_capability_handler_exits_5(tmp_path):
     signable = {
         "ticket_id": "tkt-x", "order_id": "ord-x",
         "capability_id": "cap.ghost.v1",
+        "behavior": "ghost_behavior",   # a behavior the chef has no handler for
         "scoped_args": {"thread_id": "user.kenji/t-001"},
         "issued_ts": "2026-06-10T00:00:00+00:00",
     }
@@ -148,5 +149,5 @@ def test_unknown_capability_handler_exits_5(tmp_path):
         input=json.dumps(wire), capture_output=True, text=True)
 
     assert proc.returncode == 5, (proc.stdout, proc.stderr)
-    assert "no handler" in proc.stderr
+    assert "no handler for behavior" in proc.stderr
     assert not (out_dir / "output.txt").exists()

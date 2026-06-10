@@ -6,6 +6,7 @@
   "side_effects": "none",
   "scope": "own_queue",
   "risk_class": "low",
+  "behavior": "docs_summarize",
   "description": "Return an extractive summary of a document in the acting user's own store. Reads scoped data and returns a derived artifact; the content itself never reaches the cashier or the ledger (only its digest does).",
   "recommended_max_rate": 30,
   "requires_second_admin": false,

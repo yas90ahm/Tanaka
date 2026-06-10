@@ -96,6 +96,7 @@ def test_chef_confines_read_to_owner_dir(tmp_path):
         "ticket_id": "tkt-x",
         "order_id": "ord-x",
         "capability_id": "cap.email.draft_reply.v1",
+        "behavior": "draft_reply",
         "scoped_args": scoped_args,
         "issued_ts": "2026-06-10T00:00:00+00:00",
     }

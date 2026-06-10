@@ -26,6 +26,20 @@ class Capability:
     # Defaults to "thread_id" so existing email capabilities are unchanged; a
     # docs capability can declare "doc_id", a records one "record_id", etc.
     scoped_input: str = "thread_id"
+    # v0.7 behaviors: which code template (chef handler) this menu item runs.
+    # A capability is a CONFIGURED INSTANCE of a behavior; engineers ship
+    # behaviors, operators compose capabilities from them with no code. None
+    # falls back to the id (back-compat). The cashier signs the resolved
+    # behavior into the ticket so the standalone chef can dispatch on it.
+    behavior: str | None = None
+    # v0.7 menu curation: an operator can take a capability off the active menu
+    # without deleting it. Disabled -> not returned by the live menu (ordering
+    # it is OFF_MENU). The curation surface still lists it.
+    enabled: bool = True
+
+    def resolved_behavior(self) -> str:
+        """The code template to run: the explicit behavior, else the id."""
+        return self.behavior or self.id
 
 
 @dataclass(frozen=True)
@@ -44,6 +58,7 @@ class Ticket:
     ticket_id: str
     order_id: str
     capability_id: str
+    behavior: str           # v0.7: the code template the chef must run
     scoped_args: dict
     issued_ts: str
     cashier_sig: bytes

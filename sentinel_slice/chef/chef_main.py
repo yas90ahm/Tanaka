@@ -46,6 +46,7 @@ REQUIRED_KEYS = (
     "ticket_id",
     "order_id",
     "capability_id",
+    "behavior",
     "scoped_args",
     "issued_ts",
     "cashier_sig",
@@ -80,7 +81,8 @@ def main(argv) -> int:
         if key not in t:
             print("missing required key: {}".format(key), file=sys.stderr)
             return 2
-    for key in ("ticket_id", "order_id", "capability_id", "issued_ts", "cashier_sig"):
+    for key in ("ticket_id", "order_id", "capability_id", "behavior",
+                "issued_ts", "cashier_sig"):
         if not isinstance(t[key], str):
             print("required key not a string: {}".format(key), file=sys.stderr)
             return 2
@@ -116,6 +118,7 @@ def main(argv) -> int:
         "ticket_id": t["ticket_id"],
         "order_id": t["order_id"],
         "capability_id": t["capability_id"],
+        "behavior": t["behavior"],
         "scoped_args": t["scoped_args"],
         "issued_ts": t["issued_ts"],
     }
@@ -168,12 +171,14 @@ def main(argv) -> int:
     with open(candidate, "r", encoding="utf-8") as fh:
         source_text = fh.read()
 
-    # 6. Dispatch on capability_id to its DETERMINISTIC transform. Adding a
-    #    capability = add a handler here + a descriptor JSON + a policy grant.
+    # 6. Dispatch on the signed BEHAVIOR (the code template) to its
+    #    DETERMINISTIC transform. A capability is a configured instance of a
+    #    behavior; many capabilities can share one behavior. New BEHAVIORS need
+    #    a handler here (engineer work); new CAPABILITIES are pure config.
     #    No LLM anywhere — every transform is a pure, auditable function.
-    handler = _HANDLERS.get(t["capability_id"])
+    handler = _HANDLERS.get(t["behavior"])
     if handler is None:
-        print("no handler for capability {}".format(t["capability_id"]),
+        print("no handler for behavior {}".format(t["behavior"]),
               file=sys.stderr)
         return 5
     output_text = handler(resource, source_text)
@@ -240,10 +245,13 @@ def _handle_payment_initiate(resource, source_text):
     ).format(resource)
 
 
+# Keyed by BEHAVIOR (the code template), not by capability id — so an operator
+# can create many menu items (capabilities) that reuse one behavior with no new
+# code. These behavior names are the contract shared with the catalog/templates.
 _HANDLERS = {
-    "cap.email.draft_reply.v1": _handle_draft_reply,
-    "cap.docs.summarize.v1": _handle_docs_summarize,
-    "cap.payment.initiate.v1": _handle_payment_initiate,
+    "draft_reply": _handle_draft_reply,
+    "docs_summarize": _handle_docs_summarize,
+    "payment_request": _handle_payment_initiate,
 }
 
 

@@ -6,6 +6,7 @@
   "side_effects": "none",
   "scope": "own_queue",
   "risk_class": "low",
+  "behavior": "draft_reply",
   "description": "Draft a reply to a thread in the acting user's own review queue. Writes a draft to the serving window for human review; never sends.",
   "recommended_max_rate": 20,
   "requires_second_admin": false
