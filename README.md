@@ -620,6 +620,17 @@ The chef runs behind a swappable `Sandbox` interface (`chef/sandbox.py`):
   `--network none`, this backend does not fake one (the chef's network-free
   import closure remains the mechanism).
 
+> **In-app microVM, not an integration?** The hypervisor is an OS primitive we
+> can command in-process (a ctypes probe drove the Windows Hypervisor Platform
+> directly — no Docker), exactly like AppContainer. The gap vs AppContainer is
+> that a VM brings no kernel/filesystem of its own: it needs a guest kernel + a
+> rootfs + a VMM (boot loader + virtio emulation — what Firecracker *is*). So
+> the genuine in-app microVM is real on macOS (configure Virtualization.framework)
+> and Linux (bundle Firecracker as our own engine), but on native Windows it
+> would mean hand-writing a VMM. See PROGRESS.md "Design note — can the microVM
+> be IN the app" for the full assessment; AppleVmSandbox is the seam's first,
+> construction-tested instance.
+
 **Every receipt records which containment class actually ran** the order
 (`containment`: `subprocess-contract` / `appcontainer` / `container+runsc` /
 `applevm` …),

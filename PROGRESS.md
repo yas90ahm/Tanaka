@@ -628,6 +628,57 @@ construction-tested, the honest way (no Mac here to run it).
   remains a STUB. Firecracker (Linux microVM) is still a STUB too; both slot
   behind the same `run()`.
 
+## Design note — can the microVM be IN the app, not an integration?
+
+Asked directly: the v0.15 backend shells out to Apple's `container` tool, like
+ContainerSandbox shells out to Docker. Why depend on an external runtime at
+all — why not own a microVM service in-process, the way `AppContainerSandbox`
+owns the OS sandbox via ctypes? Investigated; here is the honest verdict (no
+new backend built — this records the decision).
+
+**The primitive layer: YES, and proven in-process on this box.** The
+hypervisor is an OS service reachable from our own process, exactly like
+AppContainer. On Windows it is the Windows Hypervisor Platform
+(`WinHvPlatform.dll`). A ctypes probe from the dev Python process called
+`WHvGetCapability(HypervisorPresent)` → `S_OK`, present = True, features
+`0x2ff` — our process commanded the hypervisor with NO Docker, NO Firecracker,
+nothing installed. macOS exposes Hypervisor.framework / Virtualization.framework;
+Linux exposes `/dev/kvm`. Docker, Apple `container`, and Firecracker are all
+just consumers of these same primitives — we can be one too.
+
+**Why a microVM is still harder than AppContainer (the real gap).**
+AppContainer reuses the HOST kernel and filesystem (ACL-scoped). A VM has
+neither, so running the chef inside one needs three things the hypervisor API
+does NOT provide: (1) a guest kernel (`vmlinux`, ~5–10 MB, we ship it); (2) a
+root filesystem with Python + cryptography (tens of MB — the chef image as a
+bootable disk); (3) a VMM — the boot loader + virtio device emulation that
+turns "isolated CPU + RAM, run these bytes" into "a computer that boots Linux."
+That VMM is what Firecracker IS (~50k lines). Who writes it decides whether
+"in-app, not an integration" is realistic per platform:
+
+- **macOS — yes, cleanly.** Virtualization.framework writes the VMM for us; we
+  only configure a `VZVirtualMachine` (PyObjC). Still ship kernel + rootfs, but
+  zero device emulation. Apple's `container` is literally only this. The
+  genuine in-app microVM for Mac — not runnable on this Windows box.
+- **Linux / WSL2 — yes, by bundling.** Firecracker is a single ~5 MB Apache-2.0
+  static binary; embed it INSIDE the app and drive its API. We own engine +
+  kernel + rootfs; the user installs nothing — a bundled engine, not an
+  integration. Needs `/dev/kvm`, which **this box's WSL2 does not expose**
+  (stock `microsoft-standard-WSL2` kernel, no nested KVM).
+- **Native Windows — not realistically.** WHP is present, but there is no
+  Virtualization.framework equivalent, so we would hand-write the boot loader +
+  virtio emulation: reimplementing Firecracker in-process. Months of C/Rust
+  systems work that breaks the stdlib + cryptography/pytest deps constraint.
+
+**Decision:** keep the microVM as a `run()` backend behind the existing seam
+(AppleVmSandbox is the construction-tested first instance), NOT a hand-written
+in-app VMM. "In-app, not an integration" is real and the right long-term shape
+on macOS (configure Apple's VMM) and Linux (bundle Firecracker); on native
+Windows it stays an integration or a microVM via WSL2. The hypervisor primitive
+being ours to command in-process is proven; the kernel + rootfs + VMM layer on
+top is the work, and it is a different, larger project than this slice — left
+as a documented, deliberate STUB rather than faked.
+
 ## STILL mocked / STUB below the console (unchanged)
 
 TEE attestation, microVM, provenance-signed kitchen, real SSO (console identity
