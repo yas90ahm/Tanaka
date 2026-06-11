@@ -31,8 +31,9 @@ VERIFIER = Path(__file__).resolve().parents[1] / "verify_ledger.py"
 
 LEDGER_SRC = Path(__file__).resolve().parents[1] / "ledger" / "receipts.py"
 
-# The exact 11-key set stored in the json column (§2 of the contract,
-# v0.2: order_meta added — who/what/when metadata, never content).
+# The exact 12-key set stored in the json column (§2 of the contract,
+# v0.2: order_meta added — who/what/when metadata, never content;
+# v0.12: containment added — which sandbox class actually ran the order).
 STORED_KEYS = {
     "receipt_id",
     "order_id",
@@ -42,6 +43,7 @@ STORED_KEYS = {
     "result_digest",
     "attestation",
     "order_meta",
+    "containment",
     "prev_hash",
     "this_hash",
     "sig",

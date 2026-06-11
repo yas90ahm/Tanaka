@@ -58,6 +58,11 @@ class SandboxSpec:
 class SubprocessSandbox:
     """Default backend: a fresh subprocess. Contract, not guarantee."""
 
+    # v0.12: every backend names its containment class honestly; the runner
+    # records it on the receipt, so the chain never claims a guarantee the
+    # execution didn't have.
+    containment_class = "subprocess-contract"
+
     def run(self, spec: SandboxSpec) -> SandboxResult:
         proc = subprocess.run(
             [sys.executable, spec.chef_main, spec.pubkey_path,
@@ -100,6 +105,12 @@ class ContainerSandbox:
         # override to a uid that owns the bind-mounted window dir when the host
         # must read the output back (e.g. CI passes the runner's own uid).
         self._user = user
+
+    @property
+    def containment_class(self) -> str:
+        """Honest label for receipts: a plain hardened container, or one under
+        an alternate runtime (e.g. "container+runsc" = gVisor)."""
+        return "container" if not self._runtime else "container+" + self._runtime
 
     def is_available(self) -> bool:
         """True only if the container runtime binary is on PATH. The actual

@@ -37,7 +37,7 @@ def test_content_dict_excludes_this_hash_and_sig():
     assert set(cd.keys()) == {
         "receipt_id", "order_id", "ticket_id", "status",
         "reason_code", "result_digest", "attestation", "order_meta",
-        "prev_hash",
+        "containment", "prev_hash",
     }
     assert "this_hash" not in cd
     assert "sig" not in cd
@@ -55,6 +55,9 @@ def test_content_dict_exact_value():
         # v0.2: order_meta defaults to None when a Receipt is built without
         # who/what/when metadata (and on rows read from pre-v0.2 ledgers).
         "order_meta": None,
+        # v0.12: containment defaults to None when nothing executed (and on
+        # rows read from pre-v0.12 ledgers).
+        "containment": None,
         # BASELINE.prev_hash is set from the GENESIS_PREV_HASH symbol, whose
         # true sha256(b"GENESIS") value is the 901131... digest below (see
         # test_genesis_prev_hash_literal for why the draft's af555... literal
@@ -72,10 +75,11 @@ def test_baseline_hash_is_stable_hex():
 
 
 def test_baseline_hash_exact_literal():
-    # v0.2 literal: the content dict gained "order_meta": None, which changes
-    # the canonical bytes (the v0.1 literal was bfcf09eb...098b830).
+    # v0.12 literal: the content dict gained "containment": None, which
+    # changes the canonical bytes (the v0.2 literal was d839fe4d...f67bad;
+    # the v0.1 literal was bfcf09eb...098b830).
     assert receipt_content_hash(receipt_content_dict(BASELINE)) == \
-        "d839fe4d22f73d6ec6ffdcefbc65874d8f6f651f6dbd584d2740c96c80f67bad"
+        "b38656bebc55b3585515953bf3c824acb4822b7850e9e55b996b704f445faf3c"
 
 
 def test_hash_changes_when_each_content_field_mutated():
@@ -95,6 +99,7 @@ def test_hash_changes_when_each_content_field_mutated():
             "capability_id": "cap.email.draft_reply.v1",
             "ts": "2026-06-10T00:00:00+00:00",
         },
+        "containment":  "appcontainer",
         "prev_hash":    "00" * 32,
     }
     assert set(mutations.keys()) == set(receipt_content_dict(BASELINE).keys())

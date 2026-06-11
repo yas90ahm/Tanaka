@@ -60,6 +60,7 @@ class Ledger:
         result_digest: str | None,
         attestation: dict | None,
         order_meta: dict | None = None,
+        containment: str | None = None,
     ) -> Receipt:
         prev_hash = self._head_hash()
 
@@ -72,6 +73,7 @@ class Ledger:
             "result_digest": result_digest,
             "attestation": attestation,
             "order_meta": order_meta,
+            "containment": containment,
             "prev_hash": prev_hash,
         }
         this_hash = receipt_content_hash(content_dict)
@@ -88,6 +90,7 @@ class Ledger:
             "result_digest": result_digest,
             "attestation": attestation,
             "order_meta": order_meta,
+            "containment": containment,
             "prev_hash": prev_hash,
             "this_hash": this_hash,
             "sig": sig_b64,
@@ -111,6 +114,7 @@ class Ledger:
             this_hash=this_hash,
             sig=raw_sig,
             order_meta=order_meta,
+            containment=containment,
         )
 
     def read_all_raw(self) -> list[tuple[int, dict]]:
@@ -140,8 +144,9 @@ class Ledger:
                     prev_hash=row["prev_hash"],
                     this_hash=row["this_hash"],
                     sig=base64.b64decode(row["sig"]),
-                    # Rows written before v0.2 lack the key -> None.
+                    # Rows written before v0.2 / v0.12 lack the keys -> None.
                     order_meta=row.get("order_meta"),
+                    containment=row.get("containment"),
                 )
             )
         return receipts

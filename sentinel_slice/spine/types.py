@@ -86,6 +86,11 @@ class Receipt:
     # the role, the capability, the order timestamp). METADATA ONLY: never
     # args, never content. None on rows written before v0.2.
     order_meta: dict | None = None
+    # v0.12: the containment class that actually executed this order
+    # ("subprocess-contract", "appcontainer", "container", "container+runsc").
+    # The chain never claims a guarantee it didn't have. None on rows written
+    # before v0.12 and on receipts where nothing executed (rejections).
+    containment: str | None = None
 
 
 def order_meta_from_order(order: Order) -> dict:

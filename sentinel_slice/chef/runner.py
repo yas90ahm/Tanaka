@@ -71,6 +71,10 @@ def run_chef(
     guarantee on Linux+gVisor behind this same call; see chef/sandbox.py."""
     if sandbox is None:
         sandbox = SubprocessSandbox()
+    # v0.12: the receipt records which containment class ACTUALLY ran this
+    # order. A custom backend without the attribute is recorded as "unknown"
+    # rather than guessed.
+    containment = getattr(sandbox, "containment_class", "unknown")
     workspace = tempfile.mkdtemp(prefix="chef_ws_")
     try:
         out_dir = serving.window_dir(ticket.order_id, window_root)
@@ -125,6 +129,7 @@ def run_chef(
                 result_digest=result_digest,
                 attestation=attestation,
                 order_meta=order_meta,
+                containment=containment,
             )
 
             return ChefResult(
@@ -153,6 +158,8 @@ def run_chef(
             result_digest=None,
             attestation=None,
             order_meta=order_meta,
+            # The failed execution still HAD a containment class — record it.
+            containment=containment,
         )
         return ChefResult(
             workspace_path=workspace,
