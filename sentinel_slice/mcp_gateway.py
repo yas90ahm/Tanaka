@@ -275,6 +275,10 @@ def main(argv=None) -> int:
     parser.add_argument("--home", default=None,
                         help="app home (default: platform per-user dir or "
                         "$SENTINEL_HOME)")
+    parser.add_argument("--sandbox", default="auto",
+                        choices=["auto", "subprocess", "appcontainer"],
+                        help="chef containment: auto (the app home's set-up "
+                        "backend, else subprocess), or force one")
     parser.add_argument("--confirm", action="store_true",
                         help="route every call through the personal-"
                         "permission gate: Ask capabilities pop an ON-DEVICE "
@@ -294,9 +298,15 @@ def main(argv=None) -> int:
         # stdout is the JSON-RPC channel — operational notes go to stderr.
         print("sentinel-mcp: using app home " + paths.home, file=sys.stderr)
 
+    sandbox = _resolve_sandbox(args.sandbox, paths)
+    if sandbox is not None:
+        print("sentinel-mcp: chef containment = {}".format(
+            sandbox.containment_class), file=sys.stderr)
+
     try:
         loop = build_default(
-            paths.ledger, window_root=paths.window_root, keys_dir=paths.keys_dir)
+            paths.ledger, window_root=paths.window_root, keys_dir=paths.keys_dir,
+            sandbox=sandbox)
     except FileNotFoundError as exc:
         print(exc, file=sys.stderr)
         return 2
@@ -341,6 +351,27 @@ def main(argv=None) -> int:
         pass
     gateway.serve(sys.stdin, sys.stdout)
     return 0
+
+
+def _resolve_sandbox(choice, paths):
+    """Pick the chef containment backend. 'auto' uses the backend the app
+    home was set up with (sentinel-init --sandbox), else the subprocess
+    default (returned as None — run_chef constructs it). 'appcontainer'
+    forces it (and requires its grants to be set up). Returns a backend
+    instance or None."""
+    from sentinel_slice.apphome import read_sandbox_backend
+    from sentinel_slice.chef.appcontainer import AppContainerSandbox, is_available
+
+    want = choice
+    if choice == "auto":
+        want = read_sandbox_backend(paths.home) or "subprocess"
+    if want == "appcontainer":
+        if not is_available():
+            print("sentinel-mcp: AppContainer requested but unavailable here; "
+                  "falling back to the subprocess contract.", file=sys.stderr)
+            return None
+        return AppContainerSandbox()
+    return None  # subprocess contract (run_chef's default)
 
 
 def cli() -> None:

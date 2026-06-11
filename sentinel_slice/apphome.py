@@ -90,6 +90,35 @@ def preferences_path(home: str) -> str:
     return os.path.join(home, "permissions.json")
 
 
+def sandbox_marker_path(home: str) -> str:
+    return os.path.join(home, "sandbox.json")
+
+
+def read_sandbox_backend(home: str) -> str | None:
+    """The containment backend the user opted into (e.g. "appcontainer"), or
+    None if none was set up. A small JSON marker written by the sandbox
+    setup; absent/garbage -> None (fall back to the subprocess contract)."""
+    import json
+    try:
+        with open(sandbox_marker_path(home), "r", encoding="utf-8-sig") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    backend = data.get("backend") if isinstance(data, dict) else None
+    return backend if isinstance(backend, str) and backend else None
+
+
+def write_sandbox_backend(home: str, backend: str) -> str:
+    """Record the chosen containment backend in the app home. Returns the
+    marker path."""
+    import json
+    path = sandbox_marker_path(home)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"backend": backend}, fh, indent=2, sort_keys=True)
+        fh.write("\n")
+    return path
+
+
 def is_initialized(home: str) -> bool:
     """True iff sentinel-init has produced a credential in this home."""
     return os.path.isfile(private_key_path(home))

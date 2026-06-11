@@ -530,6 +530,35 @@ The chef runs behind a swappable `Sandbox` interface (`chef/sandbox.py`):
   construction is unit-tested exactly regardless. Firecracker microVMs slot in
   behind the same `run()` — this is the seam that turns "sandbox is a
   contract" into "sandbox is a guarantee" without changing a type signature.
+- `AppContainerSandbox` (Windows, **zero install**) — runs the chef in a
+  Windows **AppContainer** (`chef\appcontainer.py`): the same OS isolation
+  primitive the browser uses to contain a web page. Built on stdlib `ctypes`
+  — no Docker, no VM, no admin. Granted **zero capabilities**, so the OS
+  firewall blocks all network by construction (network is a *denied*
+  capability, not a dropped one); file ACLs confine it to the per-order
+  workspace + kitchen scope (read) and the one serving window (write) — it
+  **cannot read your documents because it was never granted them**; a job
+  object caps it (kill-on-close, one process, memory). This is exercised for
+  real, not asserted: an env-gated test (`SENTINEL_TEST_APPCONTAINER=1`) runs
+  a probe *inside* the container and confirms the OS denies an internet
+  socket and a read of the user profile while the serving window stays
+  writable, then runs the real chef and asserts a **byte-identical FULFILLED
+  receipt** carrying `containment="appcontainer"`. Honest rung: this is an OS
+  sandbox sharing the host kernel — **not** a hypervisor/microVM boundary and
+  **not** a TEE. The next rung (gVisor / Firecracker / Virtualization.framework)
+  is a different `run()` backend and a different receipt label.
+
+**Every receipt records which containment class actually ran** the order
+(`containment`: `subprocess-contract` / `appcontainer` / `container+runsc` …),
+hash-bound like every other field — so the chain never claims a guarantee the
+execution didn't have. Forging a stronger claim in a stored row breaks
+verification at that seq.
+
+To turn it on (Windows): `sentinel-init --sandbox` (or `sentinel-sandbox-setup
+setup`) grants the package SID read+execute on the Python runtime once and
+drops a marker in the app home; `sentinel-mcp` then auto-selects it
+(`--sandbox auto`, the default). `sentinel-sandbox-setup teardown` reverses the
+grants. An installer runs the setup so your dad never sees a flag.
 
 ## Layer map (essays → code)
 

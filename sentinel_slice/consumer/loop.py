@@ -121,6 +121,7 @@ class ConsumerLoop:
             attestor=loop.attestor,
             window_root=loop.window_root,
             order_meta=order_meta_from_order(order),
+            sandbox=getattr(loop, "sandbox", None),
         )
         fulfilled = chef.returncode == 0 and chef.draft_bytes is not None
         return ConsumerOutcome(

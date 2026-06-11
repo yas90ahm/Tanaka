@@ -40,6 +40,10 @@ def main(argv=None, *, print_fn=print, environ=None) -> int:
     parser.add_argument(
         "--force", action="store_true",
         help="overwrite an existing keypair (retires every ledger it signed)")
+    parser.add_argument(
+        "--sandbox", action="store_true",
+        help="set up OS-level chef containment (Windows AppContainer): grants "
+        "+ a marker so sentinel-mcp uses it automatically")
     args = parser.parse_args(argv)
 
     home = args.home if args.home is not None else apphome.default_app_home(
@@ -69,10 +73,36 @@ def main(argv=None, *, print_fn=print, environ=None) -> int:
     print_fn("  ledger:       " + apphome.ledger_path(home)
              + "  (created on first order)")
     print_fn("  permissions:  " + apphome.preferences_path(home))
+
+    # OS-level chef containment (Windows AppContainer). Opt-in (--sandbox)
+    # because it modifies ACLs on the Python runtime; an installer passes it,
+    # a hand-run init gets a hint instead.
+    _setup_sandbox(home, args.sandbox, print_fn)
     print_fn("")
     print_fn(_NEXT_STEPS.format(
         ledger=apphome.ledger_path(home), pubkey=public_path))
     return 0
+
+
+def _setup_sandbox(home, requested, print_fn) -> None:
+    """Set up the OS containment backend when asked and available; otherwise
+    leave a hint. Records the chosen backend in the app-home marker so
+    sentinel-mcp picks it up with no further flags."""
+    from sentinel_slice.chef import appcontainer
+
+    if not requested:
+        if appcontainer.is_available():
+            print_fn("  containment:  available — re-run with --sandbox to "
+                     "enable the Windows AppContainer (OS-enforced)")
+        return
+    if not appcontainer.is_available():
+        print_fn("  containment:  --sandbox requested but AppContainer is "
+                 "unavailable here; the chef runs as a subprocess (contract).")
+        return
+    appcontainer.AppContainerSandbox.setup()
+    marker = apphome.write_sandbox_backend(home, "appcontainer")
+    print_fn("  containment:  Windows AppContainer ENABLED (no network, "
+             "ACL-confined). marker: " + marker)
 
 
 def cli() -> None:

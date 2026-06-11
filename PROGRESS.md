@@ -4,11 +4,13 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 196 passing, 2 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**Tests:** 214 passing, 5 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
 The skips are availability-gated integration tests: the ContainerSandbox
-Docker run (needs a container runtime; exercised in Linux CI) and the real
-tkinter approval dialog (needs a display; set `SENTINEL_TEST_GUI=1` — it was
-exercised on the Windows dev box).
+Docker run (needs a container runtime; exercised in Linux CI); the real
+tkinter approval dialog (needs a display; `SENTINEL_TEST_GUI=1` — exercised on
+the Windows dev box); the two real Windows AppContainer isolation tests
+(`SENTINEL_TEST_APPCONTAINER=1` — exercised live on the Windows dev box); and
+the off-Windows AppContainer degradation check (runs only off-Windows).
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
 v0.1 run (one honest order + one injected probe) PLUS a v0.2-format run
 appended on the SAME unbroken chain (schema evolution by append, never
@@ -482,6 +484,55 @@ impossible — Sentinel running as an MCP server.
   in the architecture; a hardened consumer product swaps `show_dialog` for
   the platform consent surface behind the same contract. And the gate still
   only binds an agent FORCED through the broker (containment, v0.4/v0.5).
+
+## v0.12 — OS-enforced containment on a consumer machine (the body)
+
+The chef's "sandbox is a contract" finally has a real-isolation backend that
+ships to a Windows PC with ZERO install — and every receipt now records which
+containment class actually ran.
+
+- **Containment on the receipt — BUILT (v0.12a).** `Receipt.containment` +
+  `Ledger.append(containment=)`, hash-bound (format evolution by append, the
+  v0.2 order_meta rule — old rows still verify). Every backend names itself
+  honestly: `subprocess-contract` / `container` / `container+runsc` /
+  `appcontainer`. `run_chef` stamps it on FULFILLED and EXECUTION_FAILED
+  receipts; rejections (nothing ran) record null; an unlabeled backend is
+  recorded `unknown`, never guessed. Tamper test: forging a stronger
+  containment claim in a stored row breaks verification at that exact seq.
+- **`chef/appcontainer.py` — BUILT (v0.12b), and PROVEN LIVE.** A real Windows
+  AppContainer backend in stdlib `ctypes` (no Docker, no VM, no admin):
+  derives a package SID, launches the chef via `CreateProcessW` with a
+  zero-capability `SECURITY_CAPABILITIES` (→ **no network by construction**:
+  the OS firewall denies an AppContainer with no network capability), confines
+  file access by ACL grants (workspace + kitchen RX, serving window M; setup-
+  once read+execute on the Python runtime), and binds a job object
+  (kill-on-close, ActiveProcessLimit=1, memory cap; created suspended →
+  assigned → resumed so limits bind before it runs). Std I/O via inherited
+  file handles (no pipe-deadlock dance). **Exercised, not asserted:** the
+  env-gated test (`SENTINEL_TEST_APPCONTAINER=1`) ran a probe INSIDE the
+  container on this Windows box — `internet=DENIED`, `read_outside(user
+  profile)=DENIED`, `write serving window=ALLOWED` — then ran the real chef to
+  a **byte-identical FULFILLED receipt** (same digest as the subprocess
+  backend) labeled `containment="appcontainer"`. Grants are reversible
+  (`teardown`), and were torn down after the run.
+- **Wiring — BUILT.** `SentinelLoop.sandbox` + `build_default(sandbox=)` thread
+  the backend to `run_chef`; the consumer path uses it too. App-home marker
+  (`sandbox.json`) records the opted-in backend; `sentinel-init --sandbox`
+  (opt-in: it modifies Python-runtime ACLs, so an installer passes it, not a
+  bare init) sets it up; `sentinel-mcp --sandbox auto` (default) selects it,
+  degrading to the subprocess contract when AppContainer is unavailable.
+  Entry point `sentinel-sandbox-setup` (setup/teardown/status).
+- **One chef change:** the chef skips `os.makedirs(out_dir)` when out_dir
+  already exists — under an AppContainer it can be denied STAT on out_dir's
+  parents and `makedirs(exist_ok=True)` walks the parent chain regardless; the
+  sandbox pre-creates+grants out_dir so the walk never happens. Output is
+  byte-identical; the subprocess path is unchanged (regression-green).
+- **FLAGS — the honest rung.** AppContainer is an OS sandbox sharing the host
+  kernel: a kernel exploit escapes it. It is NOT a hypervisor/microVM boundary
+  and NOT a TEE — those are the next `run()` backends (gVisor exists as
+  `container+runsc`; Firecracker / macOS Virtualization.framework remain
+  STUB) and would carry a different, stronger `containment` label. The receipt
+  always tells the truth about which one ran.
 
 ## STILL mocked / STUB below the console (unchanged)
 

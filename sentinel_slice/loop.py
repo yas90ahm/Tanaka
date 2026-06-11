@@ -45,6 +45,7 @@ class SentinelLoop:
         fixtures_root,
         attestor,
         window_root,
+        sandbox=None,
     ):
         # private_key is the credential — it lives ONLY on this instance.
         self.private_key = private_key
@@ -52,6 +53,10 @@ class SentinelLoop:
         self.menu = menu
         self.policy_set = policy_set
         self.store = store
+        # v0.12: the containment backend the chef runs in (None ->
+        # run_chef's default SubprocessSandbox). The receipt records which
+        # class actually ran. Consumer/MCP paths read this too.
+        self.sandbox = sandbox
         # Defensively absolutize the three chef-facing paths so the Phase-4
         # footgun (chef cwd=throwaway dir) is impossible to trip.
         self.public_key_pem_path = os.path.abspath(public_key_pem_path)
@@ -77,6 +82,7 @@ class SentinelLoop:
             attestor=self.attestor,
             window_root=self.window_root,
             order_meta=self._current_order_meta,
+            sandbox=self.sandbox,
         )
         return self._last_chef
 
@@ -119,6 +125,7 @@ def build_default(
     *,
     window_root: str | None = None,
     keys_dir: str | None = None,
+    sandbox=None,
 ) -> SentinelLoop:
     """Construct a SentinelLoop wired to the cashier key in `keys_dir`
     (default: the committed sentinel_slice/keys) and the real services. This
@@ -168,4 +175,5 @@ def build_default(
         fixtures_root=fixtures_root,
         attestor=attestor,
         window_root=window_root,
+        sandbox=sandbox,
     )

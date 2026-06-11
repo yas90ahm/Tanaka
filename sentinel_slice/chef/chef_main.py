@@ -189,8 +189,13 @@ def main(argv) -> int:
     output_text = handler(resource, source_text, t["behavior_config"])
 
     # 7. Create out_dir, write the single output artifact (success-only side
-    #    effect). The filename is the same for every capability.
-    os.makedirs(out_dir, exist_ok=True)
+    #    effect). The filename is the same for every capability. Skip makedirs
+    #    when the dir already exists: under an OS sandbox (AppContainer) the
+    #    chef may be denied STAT on out_dir's parents, and makedirs(exist_ok)
+    #    walks the parent chain regardless — so a pre-created, granted out_dir
+    #    must not trigger that walk. isdir(out_dir) succeeds (it IS granted).
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir, exist_ok=True)
     output_file = os.path.join(out_dir, "output.txt")
     with open(output_file, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(output_text)
