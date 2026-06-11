@@ -4,7 +4,7 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 159 passing, 1 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**Tests:** 181 passing, 1 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
 The skip is the ContainerSandbox Docker integration test, which runs only where
 a container runtime is present (not on Windows / minimal CI).
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
@@ -410,6 +410,38 @@ governed and receipted — adding the two things MCP itself lacks.
   hold third-party credentials or run real integrations — those (and packaging
   as an installable app + on-device prompts) are the remaining work between this
   and a consumer product.
+
+## v0.10 — installable app (per-user home + sentinel-init)
+
+Closes the first of v0.9's named gaps: packaging. Installed Sentinel no longer
+keeps state in site-packages or the cwd.
+
+- **`apphome.py` — BUILT.** Per-user state directory (`%APPDATA%\SentinelLoop`
+  on Windows, Application Support on macOS, XDG on Linux; `SENTINEL_HOME`
+  overrides). One definition of "initialized": the cashier private key exists
+  in the home. `resolve_runtime_paths` applies a fixed precedence — explicit
+  CLI flag > initialized app home > dev-checkout fallback — so a plain git
+  clone behaves exactly as before (regression: whole suite green).
+- **`sentinel-init` — BUILT.** First-run command: creates the home layout,
+  generates the keypair there (same destructive-regeneration guard as keygen:
+  refuses without `--force`), prints where everything lives + next steps.
+- **Entry points follow the home.** `sentinel-mcp` (ledger, keys, window,
+  operator capabilities — with an explicit stderr note, since stdout is the
+  protocol channel), the consumer demo, and the permissions editor
+  (`permissions.json` in the home) all resolve through the same function.
+- **Proven, not claimed:** the wheel was built and installed into a scratch
+  venv; `sentinel-init` + a live `sentinel-mcp` stdio session (one FULFILLED
+  call, one OUT_OF_SCOPE refusal) ran from a foreign cwd touching only the
+  app home; the installed `sentinel-verify` printed `OK verified=2` against
+  the home's ledger. An e2e test repeats this from pytest.
+- **stdio hardening:** the gateway tolerates a UTF-8 BOM on an incoming line
+  (PowerShell 5.1 piping prepends one) — the handshake is not a parse error
+  on Windows shells.
+- **FLAGS — honest scope.** "Installable app" = pip/pipx package + first-run
+  command + per-user state dir. It is NOT a signed platform installer
+  (MSI/DMG), NOT auto-updating, NOT a background service, and there is no
+  GUI shell. Policies are still the package-shipped JSON files; the app home
+  does not yet have a per-user policy store.
 
 ## STILL mocked / STUB below the console (unchanged)
 

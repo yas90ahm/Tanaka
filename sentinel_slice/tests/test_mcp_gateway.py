@@ -175,6 +175,21 @@ def test_stdio_serve_loop(tmp_path):
     assert json.loads(lines[1])["id"] == 2
 
 
+def test_stdio_tolerates_utf8_bom_on_first_line(tmp_path):
+    """Windows shells (PowerShell 5.1 piping) prepend a BOM to the first
+    line; the handshake must not become a parse error for that."""
+    gw, _ = _gateway(tmp_path)
+    instream = io.StringIO(
+        chr(0xFEFF) + json.dumps(_req("initialize", {}, 1)) + "\n")
+    out = io.StringIO()
+    gw.serve(instream, out)
+    lines = [ln for ln in out.getvalue().splitlines() if ln.strip()]
+    assert len(lines) == 1
+    resp = json.loads(lines[0])
+    assert resp["id"] == 1
+    assert resp["result"]["serverInfo"]["name"] == "sentinel-loop"
+
+
 def test_chain_verifies_after_gateway_calls(tmp_path):
     gw, pub = _gateway(tmp_path)
     gw.handle(_req("tools/call", {

@@ -146,6 +146,42 @@ everything via modules from the repo root: `python -m sentinel_slice.keygen`,
 `python -m sentinel_slice.run_slice`, `python -m sentinel_slice.console.server`,
 etc. The `pip install -e .` step just adds the `sentinel-*` console commands.
 
+## Install as an app (per-user home)
+
+The repo is also an installable app: build/install the wheel (or
+`pipx install .`), run `sentinel-init` once, and every entry point keeps its
+state in a per-user **app home** instead of the checkout or the cwd:
+
+| platform | app home |
+|---|---|
+| Windows | `%APPDATA%\SentinelLoop` |
+| macOS | `~/Library/Application Support/SentinelLoop` |
+| Linux | `$XDG_DATA_HOME/sentinel-loop` (default `~/.local/share/sentinel-loop`) |
+
+`SENTINEL_HOME` overrides the location (tests, portable installs, several
+profiles). Inside the home: `keys/` (your private key — generated on your
+machine, never shipped), `ledger.db`, `window/`, `capabilities_custom/`
+(operator-created menu items), `permissions.json` (your Allow/Ask/Block
+choices).
+
+```sh
+pipx install .          # or: pip install . in any venv
+sentinel-init           # creates the home + your keypair, prints where everything is
+sentinel-mcp            # uses the home's key/ledger from ANY working directory
+sentinel-verify "<home>/ledger.db" "<home>/keys/cashier_ed25519_public.pem"
+```
+
+Resolution precedence is deliberately boring: an **explicit CLI flag** always
+wins; else an **initialized app home** provides the default; else the
+**dev-checkout behavior** is unchanged (package keys, `./ledger.db`) — so a
+git clone keeps working exactly as before. `sentinel-init` refuses to
+overwrite an existing private key without `--force`, because regenerating a
+key retires every ledger it signed.
+
+**Honest scope:** "installable app" here means a pip/pipx-installable package
+with a first-run command and a per-user state directory — not a signed
+platform installer (MSI/DMG), not auto-update, not a background service.
+
 ## Run the slice
 
 One honest order and one prompt-injected probe into a single ledger, then the

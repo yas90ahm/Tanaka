@@ -15,10 +15,17 @@ interactive loop (input/print injectable).
 import os
 import sys
 
+from sentinel_slice.apphome import resolve_runtime_paths
 from sentinel_slice.consumer.preferences import ALLOW, ASK, BLOCK, Preferences
 from sentinel_slice.menu.catalog import load_catalog
 
 DEFAULT_PREFS_PATH = os.path.abspath("sentinel_permissions.json")
+
+
+def default_prefs_path() -> str:
+    """Where preferences live by default: the app home's permissions.json
+    when sentinel-init has run, else the historical cwd file (dev checkout)."""
+    return resolve_runtime_paths().preferences_path or DEFAULT_PREFS_PATH
 
 _LABEL = {ALLOW: "Allow", ASK: "Ask each time", BLOCK: "Block"}
 _CHOICE = {"a": ALLOW, "s": ASK, "b": BLOCK}
@@ -43,7 +50,7 @@ def ordered_caps(catalog):
 
 def main(argv=None, *, input_fn=input, print_fn=print) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    path = argv[0] if argv else DEFAULT_PREFS_PATH
+    path = argv[0] if argv else default_prefs_path()
 
     catalog = load_catalog()
     prefs = Preferences.load(path)

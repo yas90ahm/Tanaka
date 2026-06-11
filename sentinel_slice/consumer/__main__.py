@@ -83,8 +83,13 @@ def main() -> int:
         )
         # Honor a saved permissions file if the user made one with
         # `python -m sentinel_slice.consumer.permissions`; else defaults apply
-        # (low-stakes ALLOW, high-stakes ASK).
-        prefs = Preferences.load(os.path.abspath("sentinel_permissions.json"))
+        # (low-stakes ALLOW, high-stakes ASK). An initialized app home
+        # (sentinel-init) provides the file's location; a dev checkout keeps
+        # the old cwd file.
+        from sentinel_slice.apphome import resolve_runtime_paths
+        prefs_path = resolve_runtime_paths().preferences_path or os.path.abspath(
+            "sentinel_permissions.json")
+        prefs = Preferences.load(prefs_path)
         consumer = ConsumerLoop(loop, approver=CliApprover(), preferences=prefs)
 
         print("=== benign action: draft a reply (no friction expected) ===")

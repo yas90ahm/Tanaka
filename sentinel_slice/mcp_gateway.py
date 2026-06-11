@@ -51,7 +51,7 @@ class McpGateway:
 
     def __init__(self, loop, *, principal: str, role: str,
                  server_name: str = "sentinel-loop",
-                 version: str = "0.9") -> None:
+                 version: str = "0.10") -> None:
         self._loop = loop
         self._principal = principal
         self._role = role
@@ -180,6 +180,10 @@ class McpGateway:
         responses to outstream. One JSON object per line (MCP stdio
         transport). Blocks until EOF."""
         for line in instream:
+            # Tolerate a UTF-8 BOM (Windows shells prepend one to the first
+            # piped line) — same courtesy preferences.load extends.
+            if line.startswith(chr(0xFEFF)):
+                line = line[1:]
             line = line.strip()
             if not line:
                 continue
@@ -223,21 +227,37 @@ def main(argv=None) -> int:
     parser.add_argument("--principal", default="user.kenji",
                         help="identity the connected agent acts as")
     parser.add_argument("--role", default="account_manager")
-    parser.add_argument("--ledger", default="ledger.db")
+    parser.add_argument("--ledger", default=None,
+                        help="ledger db (default: the app home's ledger if "
+                        "sentinel-init ran, else ./ledger.db)")
     parser.add_argument("--keys", default=None)
     parser.add_argument("--window", default=None)
+    parser.add_argument("--home", default=None,
+                        help="app home (default: platform per-user dir or "
+                        "$SENTINEL_HOME)")
     args = parser.parse_args(argv)
 
+    from sentinel_slice.apphome import resolve_runtime_paths
     from sentinel_slice.loop import build_default
     from sentinel_slice.menu.catalog import CUSTOM_CAPABILITIES_DIR, load_catalog
 
+    # Explicit args win; an initialized app home (sentinel-init) provides the
+    # defaults; a plain dev checkout keeps its pre-v0.10 behavior.
+    paths = resolve_runtime_paths(
+        ledger=args.ledger, keys=args.keys, window=args.window, home=args.home)
+    if paths.initialized:
+        # stdout is the JSON-RPC channel — operational notes go to stderr.
+        print("sentinel-mcp: using app home " + paths.home, file=sys.stderr)
+
     try:
-        loop = build_default(args.ledger, window_root=args.window, keys_dir=args.keys)
+        loop = build_default(
+            paths.ledger, window_root=paths.window_root, keys_dir=paths.keys_dir)
     except FileNotFoundError as exc:
         print(exc, file=sys.stderr)
         return 2
     # Expose operator-created capabilities as tools too.
-    loop.menu = load_catalog(custom_dir=CUSTOM_CAPABILITIES_DIR)
+    loop.menu = load_catalog(
+        custom_dir=paths.custom_capabilities_dir or CUSTOM_CAPABILITIES_DIR)
 
     gateway = McpGateway(loop, principal=args.principal, role=args.role)
     # MCP stdio is UTF-8 JSON; make the streams explicit.
