@@ -146,6 +146,34 @@ everything via modules from the repo root: `python -m sentinel_slice.keygen`,
 `python -m sentinel_slice.run_slice`, `python -m sentinel_slice.console.server`,
 etc. The `pip install -e .` step just adds the `sentinel-*` console commands.
 
+## The door — the desktop app (`sentinel-app`)
+
+For a non-technical person, the whole thing is one window. `sentinel-app`
+(stdlib tkinter — no extra deps) opens a three-screen shell and, on first run,
+sets itself up (app home + keypair, and the Windows AppContainer when
+available) so there is nothing to configure:
+
+- **Connect** — turn Sentinel on for your AI. It detects MCP hosts (Claude
+  Desktop, Claude Code, Cursor) and, on one click, writes the Sentinel entry
+  into the host's MCP config so the host launches the governed gateway. It
+  **preserves every other MCP server and setting** you already have, and
+  Disconnect removes only Sentinel's entry. (This is the universal mechanism:
+  any host that speaks MCP over a local process. A website-only assistant has
+  no local process to govern — nothing to connect.)
+- **Permissions** — Allow / Ask / Block per capability (the v0.6 surface), no
+  JSON.
+- **Activity** — what your AI did, in plain words, from the content-free
+  ledger via the inspector; refusals surface as findings, every row backed by
+  a verifiable receipt.
+
+All three screens are a thin view over a headless, fully-tested model
+(`app/connect.py`, `app/firstrun.py`, `app/model.py`); the window itself is
+exercised by an env-gated GUI test. **Honest scope:** `sentinel-app` is the
+app's *window* — not a signed platform installer (MSI/DMG), not auto-update,
+not a background service. It is the operator's Settings surface; the
+governance it configures is the product. The signed installer that runs it for
+your dad is the remaining packaging step.
+
 ## Install as an app (per-user home)
 
 The repo is also an installable app: build/install the wheel (or

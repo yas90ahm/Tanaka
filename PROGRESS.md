@@ -4,13 +4,14 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 214 passing, 5 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**Tests:** 235 passing, 7 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
 The skips are availability-gated integration tests: the ContainerSandbox
 Docker run (needs a container runtime; exercised in Linux CI); the real
-tkinter approval dialog (needs a display; `SENTINEL_TEST_GUI=1` — exercised on
-the Windows dev box); the two real Windows AppContainer isolation tests
-(`SENTINEL_TEST_APPCONTAINER=1` — exercised live on the Windows dev box); and
-the off-Windows AppContainer degradation check (runs only off-Windows).
+tkinter approval dialog and the two app-shell GUI tests (need a display;
+`SENTINEL_TEST_GUI=1` — exercised on the Windows dev box); the two real
+Windows AppContainer isolation tests (`SENTINEL_TEST_APPCONTAINER=1` —
+exercised live on the Windows dev box); and the off-Windows AppContainer
+degradation check (runs only off-Windows).
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
 v0.1 run (one honest order + one injected probe) PLUS a v0.2-format run
 appended on the SAME unbroken chain (schema evolution by append, never
@@ -533,6 +534,43 @@ containment class actually ran.
   `container+runsc`; Firecracker / macOS Virtualization.framework remain
   STUB) and would carry a different, stronger `containment` label. The receipt
   always tells the truth about which one ran.
+
+## v0.13 — the door (the consumer desktop shell)
+
+The non-technical face: download, open, connect to your AI — no terminal, no
+flags. The valuable logic is headless and fully tested; the tkinter window is
+a thin view (same discipline as the on-device dialog).
+
+- **`app/connect.py` — BUILT.** The real "connect it to your AI": an MCP-host
+  registry (Claude Desktop per-platform config path, Claude Code
+  `~/.claude.json`, Cursor `~/.cursor/mcp.json`) and connect/disconnect that
+  edit the host's MCP config FOR the user. The safety-critical promises are
+  pinned: it adds/removes ONLY the `sentinel` entry, **preserving every other
+  mcpServers entry and top-level key**; it is idempotent; a missing/garbage/
+  BOM config is tolerated. It registers the robust `python -m
+  sentinel_slice.mcp_gateway --sandbox auto` form. Proven live: wired into a
+  temp Claude Desktop config holding another server — that server and the
+  user's `globalShortcut` survived untouched.
+- **`app/firstrun.py` — BUILT.** `readiness(home)` inspects; `ensure_ready`
+  brings the home up (init keypair + dirs, and the Windows AppContainer when
+  available) idempotently. Side effects are injected, so the logic is tested
+  without writing keys or running icacls.
+- **`app/model.py` — BUILT.** The headless model behind the three screens,
+  composing pieces already built: connect status/toggle; permission rows +
+  persistence (the v0.6 Allow/Ask/Block surface); activity via the inspector
+  over the app-home ledger (empty before any order; populated and finding-
+  bearing after). No tkinter — every screen's data and every button's effect
+  is tested headless.
+- **`app/shell.py` (`sentinel-app`) — BUILT.** The tkinter window: Connect /
+  Permissions / Activity, first-run readiness on open. Thin by construction;
+  the real window builds + runs under the env-gated GUI test
+  (`SENTINEL_TEST_GUI=1`, exercised live on the Windows dev box).
+- **FLAGS — honest scope.** `sentinel-app` is the app's WINDOW, not a signed
+  platform installer (MSI/DMG), not auto-update, not a background service, and
+  not a GUI for authoring policy. "Connect to any AI" = any host that speaks
+  MCP over a local process; a website-only assistant has no local process to
+  govern. The signed installer that launches it (running `sentinel-init
+  --sandbox` so dad never sees a flag) is the remaining packaging step.
 
 ## STILL mocked / STUB below the console (unchanged)
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sentinel-slice"
-version = "0.12.0"
+version = "0.13.0"
 description = "Sentinel Loop — governance vertical slice (six takeout layers, verifiable receipts)"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
@@ -27,6 +27,7 @@ dev = [
 ]
 
 [project.scripts]
+sentinel-app = "sentinel_slice.app.shell:cli"
 sentinel-init = "sentinel_slice.init_app:cli"
 sentinel-sandbox-setup = "sentinel_slice.chef.appcontainer:cli"
 sentinel-keygen = "sentinel_slice.keygen:cli"
