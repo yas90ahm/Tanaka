@@ -101,6 +101,8 @@ class ConsumerLoop:
             decision = self._approver.decide(order=order, capability=capability)
             if decision.allow and decision.remember:
                 self._prefs.set(order.capability_id, ALLOW)
+                # "Always" is a promise across sessions, not just this one.
+                self._prefs.save_if_persistent()
             if not decision.allow:
                 receipt = self._append_consumer_rejection(
                     order, ticket, "USER_DENIED")

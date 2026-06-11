@@ -4,9 +4,11 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 181 passing, 1 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
-The skip is the ContainerSandbox Docker integration test, which runs only where
-a container runtime is present (not on Windows / minimal CI).
+**Tests:** 196 passing, 2 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+The skips are availability-gated integration tests: the ContainerSandbox
+Docker run (needs a container runtime; exercised in Linux CI) and the real
+tkinter approval dialog (needs a display; set `SENTINEL_TEST_GUI=1` — it was
+exercised on the Windows dev box).
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
 v0.1 run (one honest order + one injected probe) PLUS a v0.2-format run
 appended on the SAME unbroken chain (schema evolution by append, never
@@ -442,6 +444,44 @@ keeps state in site-packages or the cwd.
   (MSI/DMG), NOT auto-updating, NOT a background service, and there is no
   GUI shell. Policies are still the package-shipped JSON files; the app home
   does not yet have a per-user policy store.
+
+## v0.11 — on-device approval prompts (the second v0.9 gap)
+
+The confirmation gate gets its intended form: a real dialog on the user's
+screen, reachable from the one place a terminal prompt is structurally
+impossible — Sentinel running as an MCP server.
+
+- **`consumer/native.py` — BUILT.** `NativeApprover` behind the existing
+  approver contract. The prompt content (`build_prompt`) and the verdict
+  mapping (`decision_from_verdict`) are pure and pinned exactly; the dialog
+  itself is tkinter (stdlib — the deps non-negotiable holds): topmost window,
+  *Allow once / Always allow / Don't allow*, Esc/close = deny. FAIL CLOSED
+  everywhere: unknown verdict → deny, window closed → deny, `show_fn` raising
+  mid-session (display died) → deny.
+- **`sentinel-mcp --confirm` — BUILT.** Every `tools/call` runs cashier →
+  personal permissions → chef. Ask pops the dialog before execution; deny
+  returns a tool error naming the signed `USER_DENIED` receipt; Block
+  auto-denies (`USER_BLOCKED`) with no dialog; policy refusals never reach a
+  dialog (cashier first). A confirm-mode session's chain verifies standalone.
+  **No display → exit 2 at startup.** The gate must not fail open, and must
+  not mint "user denied" receipts no user ever saw. There is deliberately NO
+  CLI fallback here: stdio belongs to JSON-RPC.
+- **"Always allow" now survives the session.** `ConsumerLoop` persists the
+  preference upgrade when preferences are file-backed
+  (`Preferences.save_if_persistent`); in-memory preferences are untouched.
+- **Consumer demo** (`python -m sentinel_slice.consumer`) uses the dialog when
+  a display exists, the terminal prompt otherwise (legitimate there — a human
+  owns that terminal), and says which gate is active.
+- **Tested without faking:** mapping/integration tests drive the REAL
+  ConsumerLoop with a scripted dialog; the genuine tkinter button path runs
+  under an env-gated test (`SENTINEL_TEST_GUI=1`, exercised on this Windows
+  box — real window, real `.invoke()`).
+- **FLAGS — honest scope.** The dialog is a tkinter window, NOT the OS
+  vendor's notification/consent API: no biometric binding, no secure desktop,
+  a malicious local process could draw over it. It proves the on-device gate
+  in the architecture; a hardened consumer product swaps `show_dialog` for
+  the platform consent surface behind the same contract. And the gate still
+  only binds an agent FORCED through the broker (containment, v0.4/v0.5).
 
 ## STILL mocked / STUB below the console (unchanged)
 

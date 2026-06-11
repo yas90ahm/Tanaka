@@ -83,3 +83,11 @@ class Preferences:
             json.dump(self._settings, fh, indent=2, sort_keys=True)
             fh.write("\n")
         return target
+
+    def save_if_persistent(self) -> str | None:
+        """Save when these preferences came from a file ("Always allow" must
+        outlive the session); a no-op for in-memory preferences (tests,
+        ephemeral demos). Returns the path written, or None."""
+        if self._path is None:
+            return None
+        return self.save()

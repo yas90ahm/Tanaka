@@ -24,8 +24,8 @@ from cryptography.hazmat.primitives import serialization
 from sentinel_slice.attestor.mock import MockAttestor
 from sentinel_slice.cashier.policy import Policy, PolicySet
 from sentinel_slice.cashier.store import CashierStore
-from sentinel_slice.consumer.approval import CliApprover
 from sentinel_slice.consumer.loop import ConsumerLoop
+from sentinel_slice.consumer.native import NativeApprover, default_approver
 from sentinel_slice.consumer.preferences import Preferences
 from sentinel_slice.keygen import generate_keypair
 from sentinel_slice.ledger.receipts import Ledger
@@ -90,7 +90,13 @@ def main() -> int:
         prefs_path = resolve_runtime_paths().preferences_path or os.path.abspath(
             "sentinel_permissions.json")
         prefs = Preferences.load(prefs_path)
-        consumer = ConsumerLoop(loop, approver=CliApprover(), preferences=prefs)
+        # On-device dialog when a display exists; terminal prompt otherwise
+        # (fine here — a human owns this terminal, unlike the MCP gateway).
+        approver = default_approver()
+        gate = ("on-device dialog" if isinstance(approver, NativeApprover)
+                else "terminal prompt")
+        print("(confirmation gate: {})".format(gate))
+        consumer = ConsumerLoop(loop, approver=approver, preferences=prefs)
 
         print("=== benign action: draft a reply (no friction expected) ===")
         r1 = consumer.place(_order(DRAFT))

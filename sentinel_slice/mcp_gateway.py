@@ -51,12 +51,18 @@ class McpGateway:
 
     def __init__(self, loop, *, principal: str, role: str,
                  server_name: str = "sentinel-loop",
-                 version: str = "0.10") -> None:
+                 version: str = "0.11", consumer=None) -> None:
         self._loop = loop
         self._principal = principal
         self._role = role
         self._server_name = server_name
         self._version = version
+        # Optional ConsumerLoop over the SAME SentinelLoop: when present,
+        # every call additionally passes the personal-permission gate
+        # (Allow / Ask -> ON-DEVICE dialog / Block). This is the only viable
+        # human gate here — stdio belongs to the protocol, so a terminal
+        # prompt is structurally impossible.
+        self._consumer = consumer
 
     # ---- JSON-RPC plumbing ----
     def handle(self, request) -> dict | None:
@@ -95,6 +101,9 @@ class McpGateway:
                 "Every tool call is governed by Sentinel policy (scope, role, "
                 "rate) and leaves a signed receipt. Refused calls return an "
                 "error and are still recorded."
+                + (" High-stakes calls additionally require the user's "
+                   "on-device approval; a denial is recorded too."
+                   if self._consumer is not None else "")
             ),
         }
 
@@ -144,6 +153,9 @@ class McpGateway:
             nonce="nonce-" + uuid.uuid4().hex,
             ts=datetime.now(timezone.utc).isoformat(),
         )
+        if self._consumer is not None:
+            return self._tools_call_confirmed(order)
+
         outcome = self._loop.place(order)
 
         # Refused by the cashier: per-call governance MCP doesn't do. The
@@ -157,22 +169,35 @@ class McpGateway:
         chef = self._loop.last_chef
         receipt = chef.receipt
         if chef.returncode == 0 and chef.draft_bytes is not None:
-            output = chef.draft_bytes.decode("utf-8")
-            note = (
-                "[Sentinel receipt {} | status {} | result digest {}.. | "
-                "verifiable in the ledger]".format(
-                    receipt.receipt_id, receipt.status,
-                    (receipt.result_digest or "")[:12]))
-            return {
-                "content": [
-                    {"type": "text", "text": output},
-                    {"type": "text", "text": note},
-                ],
-                "isError": False,
-            }
+            return _fulfilled_result(chef.draft_bytes.decode("utf-8"), receipt)
         return _tool_error(
             "Execution failed ({}). Receipt: {}.".format(
                 receipt.reason_code, receipt.receipt_id))
+
+    def _tools_call_confirmed(self, order) -> dict:
+        """The confirm-mode path: cashier authorization, then the personal-
+        permission gate (Allow / on-device Ask / Block), then the chef. Every
+        outcome — including the user saying no — is a chained receipt."""
+        out = self._consumer.place(order)
+        if out.status == "REJECTED_BY_POLICY":
+            return _tool_error(
+                "Refused by policy: {}. A signed rejection receipt was "
+                "recorded ({}).".format(out.reason_code, out.receipt.receipt_id))
+        if out.status == "BLOCKED_BY_USER":
+            return _tool_error(
+                "Blocked by the user's standing permissions (USER_BLOCKED). "
+                "A signed rejection receipt was recorded ({}).".format(
+                    out.receipt.receipt_id))
+        if out.status == "DENIED_BY_USER":
+            return _tool_error(
+                "The user declined this action on-device (USER_DENIED). "
+                "A signed rejection receipt was recorded ({}).".format(
+                    out.receipt.receipt_id))
+        if out.status == "FULFILLED":
+            return _fulfilled_result(out.draft.decode("utf-8"), out.receipt)
+        return _tool_error(
+            "Execution failed ({}). Receipt: {}.".format(
+                out.receipt.reason_code, out.receipt.receipt_id))
 
     # ---- stdio serve loop ----
     def serve(self, instream, outstream) -> None:
@@ -205,6 +230,21 @@ def _error(req_id, code, message):
     return {"jsonrpc": "2.0", "id": req_id, "error": {"code": code, "message": message}}
 
 
+def _fulfilled_result(output: str, receipt) -> dict:
+    note = (
+        "[Sentinel receipt {} | status {} | result digest {}.. | "
+        "verifiable in the ledger]".format(
+            receipt.receipt_id, receipt.status,
+            (receipt.result_digest or "")[:12]))
+    return {
+        "content": [
+            {"type": "text", "text": output},
+            {"type": "text", "text": note},
+        ],
+        "isError": False,
+    }
+
+
 def _tool_error(message):
     """An MCP tool-level error (the call ran the governance path and was
     refused/failed) — distinct from a JSON-RPC protocol error."""
@@ -235,6 +275,11 @@ def main(argv=None) -> int:
     parser.add_argument("--home", default=None,
                         help="app home (default: platform per-user dir or "
                         "$SENTINEL_HOME)")
+    parser.add_argument("--confirm", action="store_true",
+                        help="route every call through the personal-"
+                        "permission gate: Ask capabilities pop an ON-DEVICE "
+                        "dialog (requires a display; refuses to start "
+                        "without one — the gate never fails open)")
     args = parser.parse_args(argv)
 
     from sentinel_slice.apphome import resolve_runtime_paths
@@ -259,7 +304,35 @@ def main(argv=None) -> int:
     loop.menu = load_catalog(
         custom_dir=paths.custom_capabilities_dir or CUSTOM_CAPABILITIES_DIR)
 
-    gateway = McpGateway(loop, principal=args.principal, role=args.role)
+    consumer = None
+    if args.confirm:
+        import os
+
+        from sentinel_slice.consumer.loop import ConsumerLoop
+        from sentinel_slice.consumer.native import NativeApprover, native_available
+        from sentinel_slice.consumer.preferences import Preferences
+
+        # stdio belongs to JSON-RPC, so the ONLY possible prompt is an
+        # on-device dialog. No display -> refuse to start rather than fail
+        # open (silently allowing) or fail weird (minting USER_DENIED
+        # receipts no user ever saw).
+        if not native_available():
+            print(
+                "sentinel-mcp: --confirm needs a display for on-device "
+                "approval dialogs and none is available; refusing to start "
+                "(the confirmation gate must not fail open).",
+                file=sys.stderr)
+            return 2
+        prefs_path = paths.preferences_path or os.path.abspath(
+            "sentinel_permissions.json")
+        consumer = ConsumerLoop(
+            loop, approver=NativeApprover(),
+            preferences=Preferences.load(prefs_path))
+        print("sentinel-mcp: on-device confirmation gate active "
+              "(permissions: " + prefs_path + ")", file=sys.stderr)
+
+    gateway = McpGateway(loop, principal=args.principal, role=args.role,
+                         consumer=consumer)
     # MCP stdio is UTF-8 JSON; make the streams explicit.
     try:
         sys.stdin.reconfigure(encoding="utf-8")

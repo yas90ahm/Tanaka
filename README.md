@@ -379,6 +379,29 @@ arguments, and the refusal is tamper-evident evidence. It works for both
 shapes — an enterprise fleet and a single user's Claude — because the agent
 just speaks plain MCP. (Minimal subset: no resources/prompts/sampling yet.)
 
+### On-device confirmation inside the gateway (`--confirm`)
+
+```sh
+sentinel-mcp --confirm
+```
+
+Routes every call through your personal permissions (Allow / Ask / Block,
+`permissions.json` in the app home). An **Ask** capability pops a real dialog
+on your screen — *Allow once / Always allow / Don't allow* — before the chef
+runs; "Always allow" is persisted, and a "Don't allow" comes back to the
+agent as a tool error **and** lands on the ledger as a signed
+`USER_DENIED` receipt. **Block** auto-denies without bothering you
+(`USER_BLOCKED`, receipted). The cashier still runs first — policy refusals
+never reach a dialog.
+
+Why a dialog and not a terminal prompt: in an MCP server, stdin/stdout *are*
+the JSON-RPC channel — there is no terminal to ask on. For the same reason
+the gate **fails closed**: with no display available, `--confirm` refuses to
+start rather than silently allowing (or minting "user denied" receipts no
+user ever saw). Honest scope: the dialog is a tkinter window (stdlib), a real
+on-screen prompt but not the OS vendor's secured consent surface — that swap
+happens behind the same approver contract.
+
 ## The operator console (Tanaka)
 
 The control surface that lets a non-engineer compliance officer author agent
