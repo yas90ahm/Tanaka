@@ -159,3 +159,94 @@ class ContainerSandbox:
             text=True,
         )
         return SandboxResult(proc.returncode, proc.stdout, proc.stderr)
+
+
+# In-VM mount points for AppleVmSandbox (mirror the container layout).
+_VM_WORK = "/work"
+
+
+class AppleVmSandbox:
+    """macOS microVM backend via Apple's `container` tool (WWDC 2025).
+
+    Apple's `container` runs each Linux container in its OWN lightweight
+    virtual machine on Virtualization.framework — a per-order HARDWARE
+    isolation boundary, built into macOS, needing no Docker. That makes it a
+    genuinely stronger rung than `AppContainerSandbox` (which is an OS sandbox
+    sharing the host kernel): a true microVM, the boundary the essays name,
+    shipped to a consumer Mac with zero third-party install.
+
+    Like `ContainerSandbox`, this is exercised only where it CAN be: command
+    CONSTRUCTION is pure and unit-tested exactly; `run()` shells out to
+    `container` and refuses off-macOS / when the binary is absent. It is NOT
+    run on this Windows dev box (no Apple silicon, no `container`) — so, per
+    the project's honesty rule, it is asserted by construction, never claimed
+    to have executed here.
+
+    HONEST CONTAINMENT NOTES (these ride on the receipt as
+    `containment="applevm"`, never as something it isn't):
+      - The isolation guarantee is the VM boundary + ephemerality (`--rm`
+        destroys the VM per order).
+      - NO-NETWORK IS NOT ASSERTED AT THE VM LEVEL. Apple's `container run`
+        exposes no documented "disable all networking" flag (unlike Docker's
+        `--network none`), so — unlike `ContainerSandbox` — this backend does
+        NOT claim a VM-enforced network block. The chef's network-free import
+        closure remains the no-network mechanism here until the tool grows a
+        deny flag. Flagged, not papered over.
+
+    The image must contain Python + cryptography to run the standalone chef.
+    """
+
+    def __init__(self, *, image="sentinel-chef", binary="container",
+                 cpus=2, memory="1G", uid=None, gid=None) -> None:
+        self._image = image
+        self._binary = binary
+        self._cpus = cpus
+        self._memory = memory
+        self._uid = uid
+        self._gid = gid
+
+    containment_class = "applevm"
+
+    def is_available(self) -> bool:
+        """True only on macOS with the `container` binary present. The actual
+        run still needs the `container` system service started and the image
+        built."""
+        return sys.platform == "darwin" and shutil.which(self._binary) is not None
+
+    def build_command(self, spec: SandboxSpec) -> list[str]:
+        """The exact `container run` argv. PURE — asserted by test. Flags are
+        the documented Apple `container` ones (-v host:guest[:ro], -w, -e,
+        --rm, -i, -m, -c, --uid/--gid). No --network: see the class note (the
+        tool exposes no disable-all-networking flag, so we don't fake one)."""
+        cmd = [self._binary, "run", "--rm", "-i"]
+        cmd += ["-m", self._memory]
+        cmd += ["-c", str(self._cpus)]
+        if self._uid is not None:
+            cmd += ["--uid", str(self._uid)]
+        if self._gid is not None:
+            cmd += ["--gid", str(self._gid)]
+        cmd += ["-e", "PYTHONDONTWRITEBYTECODE=1"]
+        # Code + inputs read-only; serving window + ephemeral cwd read-write.
+        cmd += ["-v", "{}:{}:ro".format(spec.chef_main, _GUEST_CHEF)]
+        cmd += ["-v", "{}:{}:ro".format(spec.pubkey_path, _GUEST_PUBKEY)]
+        cmd += ["-v", "{}:{}:ro".format(spec.fixtures_root, _GUEST_FIXTURES)]
+        cmd += ["-v", "{}:{}".format(spec.out_dir, _GUEST_OUT)]
+        cmd += ["-v", "{}:{}".format(spec.workspace, _VM_WORK)]
+        cmd += ["-w", _VM_WORK]
+        cmd += [self._image]
+        # The chef, with IN-VM paths.
+        cmd += ["python", _GUEST_CHEF, _GUEST_PUBKEY, _GUEST_FIXTURES, _GUEST_OUT]
+        return cmd
+
+    def run(self, spec: SandboxSpec) -> SandboxResult:
+        if not self.is_available():
+            raise RuntimeError(
+                "AppleVmSandbox needs macOS (Apple silicon) and the "
+                "`container` tool on PATH; not available here.")
+        proc = subprocess.run(
+            self.build_command(spec),
+            input=spec.stdin,
+            capture_output=True,
+            text=True,
+        )
+        return SandboxResult(proc.returncode, proc.stdout, proc.stderr)

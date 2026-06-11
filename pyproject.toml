@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sentinel-slice"
-version = "0.13.0"
+version = "0.15.0"
 description = "Sentinel Loop — governance vertical slice (six takeout layers, verifiable receipts)"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
@@ -40,6 +40,11 @@ sentinel-drill = "sentinel_slice.curriculum.drill:cli"
 sentinel-console = "sentinel_slice.console.server:cli"
 sentinel-mcp = "sentinel_slice.mcp_gateway:cli"
 sentinel-policy-form = "sentinel_slice.authoring.policy_form:main"
+
+[project.gui-scripts]
+# Windowed launcher for the Start Menu shortcut: no console window flashes
+# when a non-technical user opens the app (pythonw on Windows).
+sentinel-loop = "sentinel_slice.app.shell:cli"
 
 [tool.setuptools.packages.find]
 include = ["sentinel_slice*"]

@@ -146,6 +146,34 @@ everything via modules from the repo root: `python -m sentinel_slice.keygen`,
 `python -m sentinel_slice.run_slice`, `python -m sentinel_slice.console.server`,
 etc. The `pip install -e .` step just adds the `sentinel-*` console commands.
 
+## What dad downloads (the installer)
+
+`python build_installer.py` produces `dist/SentinelLoop-Setup-<ver>.zip` — the
+file a non-technical user downloads. Inside: the wheel plus a bootstrap
+(`INSTALL.bat` / `install.ps1`) that finds a Python, creates a private venv
+under `%LOCALAPPDATA%\Programs\SentinelLoop`, installs the package into it, and
+hands off to the package's own installer (`sentinel_slice/installer.py`), which:
+
+- runs first-run setup (`sentinel-init --sandbox` — app home, keypair, the
+  Windows AppContainer);
+- creates a **Start Menu shortcut** to the windowed app (no console flash);
+- writes a real **Add/Remove Programs** entry (per-user HKCU), so it uninstalls
+  like any other app — the uninstaller tears down the AppContainer ACL grants,
+  removes the shortcut and registry entry, and deletes the install directory.
+
+Proven end to end on a Windows box: download → `install.ps1` (real venv + pip +
+wheel + AppContainer setup) → the installed app runs an order through its own
+venv gateway (`FULFILLED`, `containment=appcontainer`) → Add/Remove Programs
+uninstall leaves no shortcut, no registry entry, no install dir, and a clean
+Python ACL.
+
+**HONEST, IN BIG LETTERS:** the bundle is **UNSIGNED**. With no code-signing
+certificate, Windows SmartScreen warns ("unknown publisher") on the downloaded
+script and the app's first run, and there is no auto-update. A shipping release
+needs an Authenticode certificate (and ideally an MSI/MSIX) — that is identity
+and money, not code. Everything here is the mechanism a signed installer would
+wrap; it is **not** itself a signed, trustless-to-the-user installer.
+
 ## The door — the desktop app (`sentinel-app`)
 
 For a non-technical person, the whole thing is one window. `sentinel-app`
@@ -576,8 +604,25 @@ The chef runs behind a swappable `Sandbox` interface (`chef/sandbox.py`):
   **not** a TEE. The next rung (gVisor / Firecracker / Virtualization.framework)
   is a different `run()` backend and a different receipt label.
 
+- `AppleVmSandbox` (macOS, **zero install**) — runs the chef via Apple's
+  `container` tool (WWDC 2025), which gives each container its **own
+  lightweight VM** on Virtualization.framework. That's a true per-order
+  **hardware-isolation boundary** built into macOS — a genuinely stronger rung
+  than AppContainer (which shares the host kernel), shipped to a consumer Mac
+  with no Docker. Same honesty as `ContainerSandbox` before Linux CI ran it:
+  the `container run` command **construction is unit-tested exactly** and
+  `run()` refuses off-macOS — it is **not** run on the Windows dev box, so it
+  is asserted by construction, never claimed to have executed here. Honest
+  caveat baked into its receipt label (`applevm`): the guarantee is the VM
+  boundary + ephemerality (`--rm` destroys the VM per order); **no-network is
+  NOT asserted at the VM level**, because Apple's `container` exposes no
+  documented "disable all networking" flag — so, unlike `ContainerSandbox`'s
+  `--network none`, this backend does not fake one (the chef's network-free
+  import closure remains the mechanism).
+
 **Every receipt records which containment class actually ran** the order
-(`containment`: `subprocess-contract` / `appcontainer` / `container+runsc` …),
+(`containment`: `subprocess-contract` / `appcontainer` / `container+runsc` /
+`applevm` …),
 hash-bound like every other field — so the chain never claims a guarantee the
 execution didn't have. Forging a stronger claim in a stored row breaks
 verification at that seq.

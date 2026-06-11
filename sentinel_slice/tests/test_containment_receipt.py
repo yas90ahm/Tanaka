@@ -24,7 +24,11 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from sentinel_slice.attestor.mock import MockAttestor
 from sentinel_slice.cashier.policy import Policy, PolicySet
 from sentinel_slice.cashier.store import CashierStore
-from sentinel_slice.chef.sandbox import ContainerSandbox, SubprocessSandbox
+from sentinel_slice.chef.sandbox import (
+    AppleVmSandbox,
+    ContainerSandbox,
+    SubprocessSandbox,
+)
 from sentinel_slice.ledger.receipts import Ledger
 from sentinel_slice.loop import SentinelLoop
 from sentinel_slice.menu.catalog import load_catalog
@@ -67,6 +71,7 @@ def test_backend_labels_are_exact():
     assert SubprocessSandbox().containment_class == "subprocess-contract"
     assert ContainerSandbox().containment_class == "container"
     assert ContainerSandbox(runtime="runsc").containment_class == "container+runsc"
+    assert AppleVmSandbox().containment_class == "applevm"
 
 
 def test_fulfilled_receipt_records_subprocess_contract(tmp_path):

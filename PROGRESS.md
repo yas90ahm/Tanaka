@@ -4,14 +4,16 @@ Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened.
 
-**Tests:** 235 passing, 7 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
+**Tests:** 249 passing, 8 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
 The skips are availability-gated integration tests: the ContainerSandbox
 Docker run (needs a container runtime; exercised in Linux CI); the real
 tkinter approval dialog and the two app-shell GUI tests (need a display;
 `SENTINEL_TEST_GUI=1` — exercised on the Windows dev box); the two real
 Windows AppContainer isolation tests (`SENTINEL_TEST_APPCONTAINER=1` —
-exercised live on the Windows dev box); and the off-Windows AppContainer
-degradation check (runs only off-Windows).
+exercised live on the Windows dev box); the installer round trip
+(`SENTINEL_TEST_INSTALLER=1` — exercised live on the Windows dev box); and the
+off-platform refusal checks (AppContainer off-Windows, AppleVmSandbox
+off-macOS).
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
 v0.1 run (one honest order + one injected probe) PLUS a v0.2-format run
 appended on the SAME unbroken chain (schema evolution by append, never
@@ -571,6 +573,60 @@ a thin view (same discipline as the on-device dialog).
   MCP over a local process; a website-only assistant has no local process to
   govern. The signed installer that launches it (running `sentinel-init
   --sandbox` so dad never sees a flag) is the remaining packaging step.
+
+## v0.14 — the installer (what a download becomes)
+
+The packaging step between "the door exists" and "dad has it installed."
+
+- **`installer.py` — BUILT.** A real Windows per-user install/uninstall (no
+  admin, HKCU only): private venv under `%LOCALAPPDATA%\Programs\SentinelLoop`,
+  package installed into it, first-run setup (`sentinel-init --sandbox`), a
+  **Start Menu shortcut** to the windowed launcher, and a genuine **Add/Remove
+  Programs** entry. The path/command/registry builders are pure and exactly
+  tested; the registry hive and target are injectable so unit tests use a
+  scratch key and temp dir. Uninstall tears down the AppContainer ACL grants,
+  removes the shortcut + registry entry, and deletes the install dir (scheduled
+  self-delete, since the uninstaller runs from inside it).
+- **`build_installer.py` — BUILT.** Produces `dist/SentinelLoop-Setup-<ver>.zip`
+  (wheel + `install.ps1` + `INSTALL.bat` + `README.txt`); the bootstrap finds a
+  Python, makes the venv, pip-installs the wheel, hands off to the package
+  installer.
+- **PROVEN END TO END on this box** (gated test `test_installer_live` +
+  a live bundle run): download → `install.ps1` (real venv + pip + wheel +
+  AppContainer setup) → the installed app ran an order through its OWN venv
+  gateway (`FULFILLED`, `containment=appcontainer`) → Add/Remove Programs
+  uninstall left no shortcut, no registry entry, no install dir, and a clean
+  Python ACL.
+- **FLAGS — UNSIGNED, loudly.** No code-signing certificate, so SmartScreen
+  warns ("unknown publisher") on the downloaded script and first run, and there
+  is no auto-update. A shipping release needs an Authenticode cert (+ MSI/MSIX)
+  — identity and money, not code. This is the mechanism a signed installer
+  wraps, NOT itself a signed, user-trustless installer. macOS (.dmg/.pkg) and
+  the signing remain a STUB.
+
+## v0.15 — AppleVmSandbox (the consumer microVM rung)
+
+The strongest containment rung that ships to a consumer with zero install —
+construction-tested, the honest way (no Mac here to run it).
+
+- **`AppleVmSandbox` — BUILT (construction).** Runs the chef via Apple's
+  `container` tool (WWDC 2025), which gives each container its OWN lightweight
+  VM on Virtualization.framework — a true per-order HARDWARE-isolation boundary
+  built into macOS, no Docker. Stronger than AppContainer (which shares the
+  host kernel). Exactly like `ContainerSandbox` before Linux CI ran it: the
+  `container run` argv CONSTRUCTION is unit-tested exactly (documented Apple
+  flags: `-v host:guest[:ro]`, `-w`, `-e`, `--rm`, `-i`, `-m`, `-c`,
+  `--uid/--gid`), and `run()` refuses off-macOS — NOT run on this Windows box,
+  asserted by construction, never claimed to have executed. Receipt label
+  `applevm`.
+- **FLAGS — honest containment.** The guarantee is the VM boundary +
+  ephemerality (`--rm` per order). **No-network is NOT asserted at the VM
+  level**: Apple's `container` exposes no documented disable-all-networking
+  flag, so — unlike `ContainerSandbox`'s `--network none` — this backend does
+  not fake one; the chef's network-free import closure stays the mechanism.
+  Running it for real (image build + a Mac in CI, like the Linux gVisor job)
+  remains a STUB. Firecracker (Linux microVM) is still a STUB too; both slot
+  behind the same `run()`.
 
 ## STILL mocked / STUB below the console (unchanged)
 
