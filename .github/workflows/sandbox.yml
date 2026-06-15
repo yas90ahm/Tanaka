@@ -1,14 +1,17 @@
 name: sandbox-isolation
 
 # Proves the chef sandbox GUARANTEE (not just the contract) on real OS/runtime
-# boundaries, on every push and PR. Three jobs:
+# boundaries, on every push and PR. Four jobs:
 #   - container-isolation (Linux): builds the chef image, runs a real chef in a
 #     hardened container, then again under gVisor (runsc).
 #   - appcontainer-isolation (Windows): the in-process AppContainer microsandbox
 #     proofs — OS-enforced no-network + foreign-read denial.
 #   - linux-sandbox-isolation (Linux): the in-process seccomp microsandbox proof
 #     — a BPF filter (ctypes) that makes network syscalls return EACCES.
-# The last two are gated out of the default ubuntu suite in ci.yml and run here.
+#   - macos-sandbox-isolation (macOS): the Seatbelt microsandbox proof — the
+#     built-in `sandbox-exec` applies a network-deny profile, then execs the chef.
+# The OS-microsandbox proofs are gated out of the default ubuntu suite (ci.yml)
+# and run here.
 # Together they turn "sandbox is a subprocess contract" into "sandbox is a real,
 # OS-enforced isolation boundary." Kept separate from ci.yml because each needs a
 # specific OS + runtime.
@@ -106,3 +109,24 @@ jobs:
         env:
           SENTINEL_TEST_LINUX_SANDBOX: "1"
         run: python -m pytest sentinel_slice/tests/test_linux_sandbox.py -v
+
+  macos-sandbox-isolation:
+    # The macOS microsandbox: no install — the built-in `sandbox-exec` applies a
+    # Seatbelt profile that denies network, then execs the chef. Gated behind
+    # SENTINEL_TEST_MAC_SANDBOX=1; runs every push/PR (public repo: macOS minutes
+    # are free).
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Prove the Seatbelt microsandbox (OS-enforced no-network)
+        env:
+          SENTINEL_TEST_MAC_SANDBOX: "1"
+        run: python -m pytest sentinel_slice/tests/test_mac_sandbox.py -v

@@ -289,11 +289,12 @@ def main(argv=None) -> int:
                         help="app home (default: platform per-user dir or "
                         "$SENTINEL_HOME)")
     parser.add_argument("--sandbox", default="auto",
-                        choices=["auto", "subprocess", "appcontainer", "seccomp"],
+                        choices=["auto", "subprocess", "appcontainer", "seccomp",
+                                 "macsandbox"],
                         help="chef containment: auto (the app home's set-up "
                         "backend, else subprocess), or force one — appcontainer "
-                        "(Windows, OS-enforced) / seccomp (Linux, OS-enforced "
-                        "no-network)")
+                        "(Windows) / seccomp (Linux) / macsandbox (macOS), each "
+                        "an OS-enforced no-network boundary")
     parser.add_argument("--confirm", action="store_true",
                         help="route every call through the personal-"
                         "permission gate: Ask capabilities pop an ON-DEVICE "
@@ -379,6 +380,7 @@ def _resolve_sandbox(choice, paths):
         AppContainerSandbox, is_available as appcontainer_available)
     from sentinel_slice.chef.linux_sandbox import (
         LinuxSeccompSandbox, is_available as seccomp_available)
+    from sentinel_slice.chef.mac_sandbox import MacSandbox
 
     want = choice
     if choice == "auto":
@@ -396,6 +398,14 @@ def _resolve_sandbox(choice, paths):
                   "contract.", file=sys.stderr)
             return None
         return LinuxSeccompSandbox()
+    if want == "macsandbox":
+        mac = MacSandbox()
+        if not mac.is_available():
+            print("sentinel-mcp: macsandbox requested but unavailable here "
+                  "(needs macOS with sandbox-exec); falling back to the "
+                  "subprocess contract.", file=sys.stderr)
+            return None
+        return mac
     return None  # subprocess contract (run_chef's default)
 
 
