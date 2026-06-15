@@ -105,10 +105,24 @@ jobs:
       - name: Install package
         run: pip install -e ".[dev]"
 
-      - name: Prove the seccomp microsandbox (OS-enforced no-network)
-        env:
-          SENTINEL_TEST_LINUX_SANDBOX: "1"
-        run: python -m pytest sentinel_slice/tests/test_linux_sandbox.py -v
+      - name: "diag: landlock available on this runner?"
+        run: python -c "import sys; from sentinel_slice.chef.linux_sandbox import is_available, landlock_abi; print('landlock_abi', landlock_abi()); sys.exit(0 if (is_available() and landlock_abi() >= 1) else 1)"
+      - name: "test: on_linux_is_available"
+        if: always()
+        env: { SENTINEL_TEST_LINUX_SANDBOX: "1" }
+        run: python -m pytest "sentinel_slice/tests/test_linux_sandbox.py::test_on_linux_is_available" -q
+      - name: "test: seccomp_denies_socket"
+        if: always()
+        env: { SENTINEL_TEST_LINUX_SANDBOX: "1" }
+        run: python -m pytest "sentinel_slice/tests/test_linux_sandbox.py::test_seccomp_denies_socket_creation" -q
+      - name: "test: landlock_denies_outside_allowlist"
+        if: always()
+        env: { SENTINEL_TEST_LINUX_SANDBOX: "1" }
+        run: python -m pytest "sentinel_slice/tests/test_linux_sandbox.py::test_landlock_denies_reads_and_writes_outside_allowlist" -q
+      - name: "test: real_chef_matches_subprocess"
+        if: always()
+        env: { SENTINEL_TEST_LINUX_SANDBOX: "1" }
+        run: python -m pytest "sentinel_slice/tests/test_linux_sandbox.py::test_real_chef_under_seccomp_matches_subprocess" -q
 
   macos-sandbox-isolation:
     # The macOS microsandbox: no install — the built-in `sandbox-exec` applies a
