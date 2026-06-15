@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """ConsumerLoop — the personal-machine orchestration with a confirmation gate.
 
 Same engine as the enterprise path, different control shape. It runs the

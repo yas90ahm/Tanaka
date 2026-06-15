@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Forged-signature refusal: the chef verifies the cashier signature BEFORE
 any side effect, so a tampered ticket exits with the FROZEN signature-
 failure code 3 and touches NOTHING — no out_dir created, no draft written.

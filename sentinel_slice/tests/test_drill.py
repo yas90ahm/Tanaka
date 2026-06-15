@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Adversarial drill tests - the curriculum slot produces real evidence.
 
 - Against the deployed policy, the full probe suite is resisted: exact

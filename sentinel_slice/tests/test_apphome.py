@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """App home (v0.10) — per-user state for an installed Sentinel.
 
 Pins exact paths for every platform branch, the SENTINEL_HOME override, the

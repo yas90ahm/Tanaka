@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """sentinel-init (v0.10) — first run of an installed Sentinel.
 
 Pins: a fresh init exits 0, creates exactly the app-home layout, and writes a

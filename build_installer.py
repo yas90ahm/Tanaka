@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Build the thing dad downloads: dist/SentinelLoop-Setup-<ver>.zip.
 
 The zip contains the wheel plus a tiny bootstrap (install.ps1 / INSTALL.bat)

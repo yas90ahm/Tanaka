@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Personal permissions (v0.6) — Allow / Ask / Block, no JSON for the user.
 
 Pins the defaults (ASK for confirmation-required caps, ALLOW otherwise),

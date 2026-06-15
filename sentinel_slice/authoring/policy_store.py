@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Policy store — versioned, signed, append-only policy history.
 
 The thing that governs the agents must be governed the same way the agents

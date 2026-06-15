@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Sentinel as an MCP gateway.
 
 The agent (Claude) speaks plain MCP. This server presents the menu's

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """App model — the data and actions behind the door's three screens.
 
 A thin, GUI-free layer the tkinter shell renders. It composes pieces already

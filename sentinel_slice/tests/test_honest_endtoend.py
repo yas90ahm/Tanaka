@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Honest end-to-end through the loop + the credential-boundary proof.
 
 - test_honest_endtoend_fulfilled_and_private: the diner places an honest

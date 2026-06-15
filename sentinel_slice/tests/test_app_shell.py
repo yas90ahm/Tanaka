@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """The door's tkinter shell (v0.13).
 
 The shell is thin, so most coverage lives in test_app_model. Here: the window

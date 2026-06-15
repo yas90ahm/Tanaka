@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Kill switch (v0.3) - the operator's instant "stop this now".
 
 A paused capability must, through the REAL loop: spawn NO chef, leave a

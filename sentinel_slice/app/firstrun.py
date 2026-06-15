@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """First-run readiness — make the app usable before showing the door.
 
 A non-technical user opens the app; it must already have done what

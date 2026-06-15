@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Authoring form for the account_manager policy (Phase 5, Worker A).
 
 This module is the GENERATOR of `sentinel_slice/policies/account_manager.json`.

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Inspector behavior tests - the back office watches the whole day.
 
 A scripted day is driven through the REAL loop (fulfillment, prompt-injection

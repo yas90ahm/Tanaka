@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Cashier engine: the five-step validation pipeline, ticket minting, and
 rejection-receipt append. This is the only Phase-3 module that calls
 Ledger.append and signs tickets.

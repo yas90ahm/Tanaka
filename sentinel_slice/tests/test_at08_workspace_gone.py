@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """SPEC acceptance #8 — the ephemeral workspace is destroyed after the run.
 
 After a successful run_chef, the chef's cwd workspace tempdir does NOT

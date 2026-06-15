@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """AppContainer sandbox backend (v0.12) — OS-enforced containment on Windows.
 
 Two tiers:

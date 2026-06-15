@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Runner — spawns the standalone chef in an ephemeral workspace, then (on
 success only) digests the draft, obtains a MOCK attestation quote, and appends
 the single FULFILLED receipt.

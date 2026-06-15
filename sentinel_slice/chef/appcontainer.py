@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """AppContainer sandbox backend — OS-enforced containment for the chef on
 Windows, with ZERO install (no Docker, no VM, no admin).
 

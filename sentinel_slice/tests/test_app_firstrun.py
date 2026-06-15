@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """First-run readiness (v0.13).
 
 readiness() inspects without changing; ensure_ready() brings the home up

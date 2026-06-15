@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Personal permissions editor — `python -m sentinel_slice.consumer.permissions`.
 
 A plain, non-technical screen: list the things an agent could try, and set each

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Consumer-mode demo — `python -m sentinel_slice.consumer`.
 
 A tiny computer-use scenario on your own machine: an agent does a benign

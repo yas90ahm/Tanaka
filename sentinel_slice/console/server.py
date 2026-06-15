@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Console HTTP transport — thin stdlib server over ConsoleService.
 
 This layer does TRANSPORT ONLY: parse the request, resolve the admin token,

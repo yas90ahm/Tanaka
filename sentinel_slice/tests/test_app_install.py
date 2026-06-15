@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Installed-app behavior (v0.10) — the app home steers every entry point.
 
 The real claim under test: after `sentinel-init`, running `sentinel-mcp` from

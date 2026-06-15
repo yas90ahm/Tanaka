@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 import dataclasses
 
 from sentinel_slice.spine.types import Receipt

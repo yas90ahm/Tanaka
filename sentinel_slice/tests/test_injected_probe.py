@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """The money artifact — the injected-diner probe.
 
 After the deterministic diner "reads" the poisoned fixture email, it attempts

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Consumer-mode approval gate (v0.4) — allow once / always / deny.
 
 A high-stakes capability (requires_user_confirmation) pauses for the user

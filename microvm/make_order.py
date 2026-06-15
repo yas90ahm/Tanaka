@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Host-side helper for the microVM proof: generate a real signed ticket + the
 cashier public key + the fixture the chef will read, into an I/O directory the
 VM mounts. The chef inside the VM verifies this signature before doing anything,

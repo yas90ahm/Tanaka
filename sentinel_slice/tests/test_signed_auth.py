@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Console identity — REAL Ed25519 signed-request auth (unit level).
 
 Pins the actual crypto: a valid signature authenticates to the right Admin;

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Installer live round trip (v0.14) — real registry, shortcut, app home.
 
 Env-gated (SENTINEL_TEST_INSTALLER=1, Windows): drives the REAL install() and

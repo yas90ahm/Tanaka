@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Standalone policy-history verifier.
 
 STANDALONE, exactly like verify_ledger.py: it imports nothing from the

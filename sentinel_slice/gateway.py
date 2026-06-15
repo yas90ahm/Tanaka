@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Gateway — the model-agnostic counter.
 
 Any diner agent — any model, any vendor, any language — interacts with the

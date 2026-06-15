@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Connect Sentinel to an AI — MCP host configuration, done for the user.
 
 "Connect it to your AI" means one concrete thing: write a Sentinel entry into

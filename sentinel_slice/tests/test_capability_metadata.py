@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Capability advisory metadata (v0.3) - inputs the console coaches from.
 
 The console reads recommended_max_rate and requires_second_admin to warn the

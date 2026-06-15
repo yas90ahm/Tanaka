@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Phase-2 ledger tests (Worker B owns these).
 
 Build a real chain via the Ledger writer, assert genesis prev_hash on seq=1,

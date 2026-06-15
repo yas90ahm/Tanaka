@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Containment class on receipts (v0.12a).
 
 The receipt records which containment class ACTUALLY executed the order, so

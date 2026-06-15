@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Append-only, hash-chained, Ed25519-signed receipt store over sqlite3.
 
 This module is INSERT-only by construction (CLAUDE.md non-negotiable #3):

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """On-device approval prompts (v0.11).
 
 The prompt content and the verdict mapping are pure and pinned exactly; the

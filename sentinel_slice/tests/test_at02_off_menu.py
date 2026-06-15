@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """SPEC acceptance #2 — OFF_MENU.
 
 An order naming a capability that is not in the catalog is rejected with

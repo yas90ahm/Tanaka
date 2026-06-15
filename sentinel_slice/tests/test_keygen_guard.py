@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Keygen overwrite protection.
 
 Regenerating the cashier keypair breaks verification of every ledger signed

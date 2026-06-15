@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """SPEC acceptance #7 — the chef has no network reach.
 
 Two distinct, complementary bars:

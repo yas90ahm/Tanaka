@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Personal permissions — the non-technical "what may my agent do?" settings.
 
 No JSON, no roles, no policy authoring. Three states per capability, like a

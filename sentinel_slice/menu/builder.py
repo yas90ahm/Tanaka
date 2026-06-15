@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """No-code capability builder.
 
 Turns a short, plain-language form into a valid capability descriptor — the

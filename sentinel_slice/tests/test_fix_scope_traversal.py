@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Regression: cross-tenant scope escape via a crafted thread_id (review #1).
 
 A thread_id like "user.kenji/../victim/secret" must NOT let the acting

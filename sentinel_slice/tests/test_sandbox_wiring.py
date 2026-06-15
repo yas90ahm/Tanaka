@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Sandbox wiring (v0.12) — the containment backend flows end to end.
 
 Pins the plumbing (no real AppContainer needed — a fake backend stands in):

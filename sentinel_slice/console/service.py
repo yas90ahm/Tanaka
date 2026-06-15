@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """ConsoleService — the operator console's business logic, transport-free.
 
 Every console action is a method here: capabilities, policies, simulate,

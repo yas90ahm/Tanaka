@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Standalone ledger verifier.
 
 This module is intentionally STANDALONE: it imports nothing from the

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """SPEC acceptance #10 — standalone verifier.
 
 (a) The verifier validates a real db using ONLY db + public-key PEM (no

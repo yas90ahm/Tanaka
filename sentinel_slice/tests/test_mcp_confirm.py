@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """MCP gateway confirm mode (v0.11) — on-device approval inside the gateway.
 
 The agent speaks MCP; a high-stakes tools/call now pops the user's on-device

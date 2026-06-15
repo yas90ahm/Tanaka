@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """ConsoleService logic + separation of duties (v0.3 phase 2).
 
 Drives the service directly (no HTTP) and asserts exact effects:

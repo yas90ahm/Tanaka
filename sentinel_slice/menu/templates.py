@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Capability TEMPLATES — the no-code menu-building blocks.
 
 A behavior is the code (a chef handler, shipped by engineers). A template is

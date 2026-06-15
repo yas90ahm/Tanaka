@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """The serving window — the PERSISTENT content path handed to the diner.
 
 This is NOT the chef's ephemeral workspace. The runner gives the chef a fresh

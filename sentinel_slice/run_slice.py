@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """End-to-end entrypoint: one honest order and one injected (probe) order into
 a SINGLE ledger, then the standalone verifier over the resulting chain.
 

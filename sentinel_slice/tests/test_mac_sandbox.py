@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """MacSandbox — the macOS Seatbelt microsandbox via `sandbox-exec`.
 
 Run-anywhere bars: honest label; the exact network-deny argv is asserted

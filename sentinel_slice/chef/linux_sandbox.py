@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Linux in-process microsandbox: seccomp (network) + Landlock (filesystem).
 
 No Docker, no daemon, no external runtime — the slice asks the Linux kernel

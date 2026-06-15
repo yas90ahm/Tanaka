@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Sandbox backends (v0.4) — the containment seam.
 
 The default SubprocessSandbox is exercised by the whole existing suite (it's

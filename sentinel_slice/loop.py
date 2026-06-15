@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """SentinelLoop — the credential boundary and the ONLY signing site.
 
 The cashier Ed25519 private key (the credential) is held here and nowhere

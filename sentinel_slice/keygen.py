@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Keygen — the one cashier/ledger Ed25519 keypair, PEM on disk.
 
 The private key is the slice's single credential. It is gitignored and lives

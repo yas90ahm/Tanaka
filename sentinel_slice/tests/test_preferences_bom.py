@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """A permissions file with a UTF-8 BOM (Notepad / PowerShell on Windows) must
 load, not crash — a non-technical user should never be punished for editing
 their own settings."""

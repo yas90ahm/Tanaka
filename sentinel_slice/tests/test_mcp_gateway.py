@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Sentinel-as-MCP-gateway (v0.9).
 
 The gateway speaks MCP JSON-RPC, but every tools/call is governed and

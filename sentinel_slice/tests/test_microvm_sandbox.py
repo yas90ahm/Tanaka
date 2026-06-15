@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """MicroVmSandbox — the chef in a real KVM virtual machine.
 
 Run-anywhere: honest label; the exact QEMU argv is asserted (snapshot=on for an

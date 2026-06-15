@@ -9,8 +9,12 @@ redistributed here.
 
 IMPORTANT — what this software is NOT:
 This is a vertical slice that proves an architecture, not a hardened product.
-Attestation is MOCKED (MockAttestor signs a code hash, not a TEE quote), the
-chef "sandbox" is a subprocess contract rather than a microVM guarantee, the
-kitchen is cooperative fixtures, and the console identity provider is a static
-token table. See PROGRESS.md for the full, unsoftened list. Do not deploy it
-as a security control without replacing those layers.
+The chef sandbox and the console identity are REAL and CI-proven (OS-enforced
+sandboxes on Windows/Linux/macOS plus a real KVM virtual machine; Ed25519
+signed-request auth verified against admin public keys). What is still MOCKED or
+unbuilt: attestation (MockAttestor signs a code hash, not a TEE quote — a real
+TEE giving hide-from-host + hardware attestation is the remaining frontier), the
+kitchen (cooperative fixtures, not a provenance-signed store), SSO/OIDC
+federation of the console keys, and a network (FastAPI) surface. See PROGRESS.md
+for the full, unsoftened list. Do not deploy it as a security control without
+replacing those remaining layers.

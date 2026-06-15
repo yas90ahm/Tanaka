@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Policy loading for the cashier.
 
 Loads `sentinel_slice/policies/*.json` VERBATIM into frozen Policy objects

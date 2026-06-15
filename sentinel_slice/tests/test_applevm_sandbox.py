@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """AppleVmSandbox (v0.15) — macOS microVM backend, construction-tested.
 
 Like ContainerSandbox before Linux CI ran it: the command CONSTRUCTION is the

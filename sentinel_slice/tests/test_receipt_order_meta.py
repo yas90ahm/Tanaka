@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """v0.2 receipt metadata — the receipt names everyone involved.
 
 Essays (Essay 3): "The receipt names everyone involved: the diner, the

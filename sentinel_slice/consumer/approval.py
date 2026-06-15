@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Consumer-mode approval — human-in-the-loop friction for high-stakes actions.
 
 This is the consumer face of the same engine the enterprise console drives. On

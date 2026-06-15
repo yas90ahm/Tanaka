@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """No-code menu building (v0.7) — an operator composes a new menu item from a
 template, with no JSON and no code, and it actually runs.
 

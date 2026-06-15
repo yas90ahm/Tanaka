@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Adversarial drill - the curriculum primitive, in miniature.
 
 Essay 6: "Like KnowBe4 sends simulated phishing emails to test whether you

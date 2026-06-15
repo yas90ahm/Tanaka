@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Windows per-user installer — what turns a download into an installed app.
 
 This is the real install/uninstall flow a non-technical user gets: a private

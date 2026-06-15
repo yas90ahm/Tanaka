@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Sandbox backends — the containment seam behind the chef.
 
 ARCHITECTURE promised that the chef's execution environment is a swap behind a

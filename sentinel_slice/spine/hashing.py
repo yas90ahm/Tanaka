@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 import hashlib
 from sentinel_slice.spine.canonical import canonical_bytes
 from sentinel_slice.spine.types import Receipt

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """sentinel-init — first run of an installed Sentinel.
 
 Creates the per-user app home (see `apphome.py`), generates the one cashier

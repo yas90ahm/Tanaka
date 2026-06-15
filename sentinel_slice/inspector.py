@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Inspector - the back office.
 
 Essay 3: "The receipts go to two places. One copy goes to the diner. One copy

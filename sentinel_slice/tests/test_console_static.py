@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Console static page is served safely and is self-contained.
 
 The console is the highest-value target, so the page that drives it must:

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """On-device approval — a real dialog on your screen, not a terminal read.
 
 This is the consumer gate's intended form: when the agent reaches for a

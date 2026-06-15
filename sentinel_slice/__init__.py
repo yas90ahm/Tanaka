@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Sentinel Loop — governance vertical slice.
 
 Single in-source version of record. The packaging metadata (pyproject.toml)

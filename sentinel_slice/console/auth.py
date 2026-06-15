@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Console identity types — the resolved operator and the two roles.
 
 The IDENTITY SOURCE is now real Ed25519 request authentication (see

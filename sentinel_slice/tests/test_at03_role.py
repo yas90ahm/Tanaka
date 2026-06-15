@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """SPEC acceptance #3 — ROLE_NOT_PERMITTED.
 
 An on-menu capability requested by a role with no policy entry ("intern")

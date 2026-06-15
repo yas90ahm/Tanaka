@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Regression: malformed crypto/db inputs yield the documented usage exit code
 (2) with a one-line message, never an uncaught traceback / exit 1
 (review #6, #7, #8, #9).

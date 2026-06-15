@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """macOS microsandbox via the built-in `sandbox-exec` launcher.
 
 No third-party install — `sandbox-exec` ships with macOS (/usr/bin). It applies

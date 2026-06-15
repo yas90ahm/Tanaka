@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Linux microVM sandbox — the chef runs inside a real KVM virtual machine.
 
 This is the rung ABOVE the OS sandboxes (seccomp/Landlock/AppContainer/Seatbelt):

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Gateway behavior tests — the model-agnostic counter.
 
 The gateway is the diner protocol made wire-real: order JSON in, outcome JSON

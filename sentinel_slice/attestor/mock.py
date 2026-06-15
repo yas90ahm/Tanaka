@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """
 ==============================  MOCK ATTESTOR  ==============================
 !!! THIS IS A MOCK. IT IS *NOT* A REAL TEE / HARDWARE ATTESTATION. !!!

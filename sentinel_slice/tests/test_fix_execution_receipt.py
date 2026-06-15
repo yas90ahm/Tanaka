@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Regression: an accepted order whose chef FAILS must still leave an auditable
 ledger row, and must not crash the diner (review #2, #3, #4, #5, #10).
 

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """The door — the consumer-facing shell.
 
 Everything a non-technical person touches: connecting Sentinel to their AI

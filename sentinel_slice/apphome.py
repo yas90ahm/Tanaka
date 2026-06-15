@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """App home — where an INSTALLED Sentinel keeps its state.
 
 The dev checkout keeps state inside the repo (sentinel_slice/keys, a cwd

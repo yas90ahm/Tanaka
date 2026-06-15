@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """SPEC acceptance #6 — tamper detection.
 
 Build a 100-receipt chain, confirm it verifies, then tamper row 50 via a

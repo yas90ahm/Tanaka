@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Console menu curation (v0.7) — a non-technical operator curates the menu.
 
 Service-level + HTTP. Asserts: templates list, creating a capability from a

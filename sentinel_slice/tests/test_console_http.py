@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Console HTTP transport e2e — stdlib only, no requests.
 
 Starts the real server on an ephemeral localhost port in a background thread

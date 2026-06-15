@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Windows installer (v0.14) — pure builders, exact.
 
 The path/command/registry builders are deterministic and security/uninstall-

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """SPEC acceptance #5 — REPLAY, plus the positive ticket-minting and
 rate-limit assertions.
 

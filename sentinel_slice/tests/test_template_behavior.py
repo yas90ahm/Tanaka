@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Template behaviors (v0.8) — a non-technical person authors a BEHAVIOR as
 data (a message template), no code.
 

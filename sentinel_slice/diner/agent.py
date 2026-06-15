@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """The diner — a DETERMINISTIC scripted agent that holds NO credentials.
 
 Hard constraints, obeyed structurally (Worker C greps this source):

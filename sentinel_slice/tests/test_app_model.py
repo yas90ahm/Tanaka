@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """App model (v0.13) — the data/actions behind the door's screens, headless.
 
 Connect rows + toggle round-trip a real host config; permission rows reflect

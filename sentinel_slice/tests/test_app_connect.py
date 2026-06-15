@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Connect logic (v0.13) — wiring Sentinel into an MCP host's config.
 
 The safety-critical promises, pinned exactly: connect adds our entry under

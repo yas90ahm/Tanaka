@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Policy store - the policy chain has the same integrity as the ledger.
 
 Asserts exact values: genesis on v1, chain linkage, active = latest active,

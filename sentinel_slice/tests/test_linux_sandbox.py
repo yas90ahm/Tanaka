@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """LinuxSeccompSandbox — the in-process Linux microsandbox.
 
 Run-anywhere bars: honest containment label; off-Linux it is unavailable and

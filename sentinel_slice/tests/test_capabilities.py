@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Pluggable capabilities (v0.5) — the chef is no longer email-only.
 
 Proves the system is GENERAL: different capabilities, different scoped-input

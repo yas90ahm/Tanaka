@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Structural blindness — the cashier/menu modules have NO import path to
 kitchen/ and read no fixture mailbox.
 

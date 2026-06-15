@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """SPEC acceptance #1 — honest fulfillment + privacy invariant.
 
 Mint a REAL ticket via the cashier, run the chef once via the runner, and

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """The door — a tkinter shell over the app model.
 
 Three screens a non-technical person can use without a terminal:

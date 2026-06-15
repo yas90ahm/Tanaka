@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """evaluate_order is a PURE decision function (v0.3 console seam).
 
 The console's Simulate runs the SAME pipeline process_order runs, so it must

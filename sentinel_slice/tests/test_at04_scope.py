@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """SPEC acceptance #4 — OUT_OF_SCOPE.
 
 A permitted role (account_manager) requests an on-menu capability but the

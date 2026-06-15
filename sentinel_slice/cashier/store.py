@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Yasir Qureshi
 """Cashier runtime state: single-use nonces and a trailing-window rate
 counter keyed by (principal, capability_id).
 
