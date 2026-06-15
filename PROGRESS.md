@@ -548,6 +548,24 @@ containment class actually ran.
   `container+runsc`; Firecracker / macOS Virtualization.framework remain
   STUB) and would carry a different, stronger `containment` label. The receipt
   always tells the truth about which one ran.
+- **`chef/linux_sandbox.py` — BUILT, the Linux peer of AppContainer.** An
+  in-process microsandbox (`containment="seccomp"`): a `preexec_fn` (run in the
+  forked child before exec) installs `PR_SET_NO_NEW_PRIVS` + a seccomp BPF
+  filter (assembled in `ctypes`, no deps) that makes the network syscalls
+  (`socket`/`connect`/`bind`) return EACCES. Privilege-free — needs no Docker,
+  no daemon, no user namespace — so it works on hardened/unprivileged hosts and
+  CI. With `socket` denied, every higher egress path (urllib.request, requests,
+  ssl) is denied too. Selectable via `sentinel-mcp --sandbox seccomp`. Same
+  fail-closed discipline: if confinement can't be applied, `run()` returns a
+  nonzero result (auditable EXECUTION_FAILED), never runs the chef unconfined.
+  **Proven in CI** by the gated `linux-sandbox-isolation` job
+  (`SENTINEL_TEST_LINUX_SANDBOX=1`): the filter denies socket creation at the
+  kernel, and a real chef under it produces a byte-identical draft to the
+  subprocess backend. FLAGS: same honest rung as AppContainer (OS sandbox,
+  shares the host kernel, not a VM/TEE). SCOPE: this backend blocks NETWORK;
+  filesystem confinement (landlock) is the next increment behind the same
+  `preexec_fn` — today the chef's own owner-dir path guard is the FS mechanism.
+  macOS `sandbox_init` is the remaining cross-platform peer (next).
 
 ## v0.13 — the door (the consumer desktop shell)
 

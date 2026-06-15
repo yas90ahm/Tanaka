@@ -289,9 +289,11 @@ def main(argv=None) -> int:
                         help="app home (default: platform per-user dir or "
                         "$SENTINEL_HOME)")
     parser.add_argument("--sandbox", default="auto",
-                        choices=["auto", "subprocess", "appcontainer"],
+                        choices=["auto", "subprocess", "appcontainer", "seccomp"],
                         help="chef containment: auto (the app home's set-up "
-                        "backend, else subprocess), or force one")
+                        "backend, else subprocess), or force one — appcontainer "
+                        "(Windows, OS-enforced) / seccomp (Linux, OS-enforced "
+                        "no-network)")
     parser.add_argument("--confirm", action="store_true",
                         help="route every call through the personal-"
                         "permission gate: Ask capabilities pop an ON-DEVICE "
@@ -373,17 +375,27 @@ def _resolve_sandbox(choice, paths):
     forces it (and requires its grants to be set up). Returns a backend
     instance or None."""
     from sentinel_slice.apphome import read_sandbox_backend
-    from sentinel_slice.chef.appcontainer import AppContainerSandbox, is_available
+    from sentinel_slice.chef.appcontainer import (
+        AppContainerSandbox, is_available as appcontainer_available)
+    from sentinel_slice.chef.linux_sandbox import (
+        LinuxSeccompSandbox, is_available as seccomp_available)
 
     want = choice
     if choice == "auto":
         want = read_sandbox_backend(paths.home) or "subprocess"
     if want == "appcontainer":
-        if not is_available():
+        if not appcontainer_available():
             print("sentinel-mcp: AppContainer requested but unavailable here; "
                   "falling back to the subprocess contract.", file=sys.stderr)
             return None
         return AppContainerSandbox()
+    if want == "seccomp":
+        if not seccomp_available():
+            print("sentinel-mcp: seccomp sandbox requested but unavailable here "
+                  "(needs Linux x86_64/aarch64); falling back to the subprocess "
+                  "contract.", file=sys.stderr)
+            return None
+        return LinuxSeccompSandbox()
     return None  # subprocess contract (run_chef's default)
 
 
