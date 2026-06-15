@@ -1,14 +1,11 @@
 name: microvm-isolation
 
-# Proves the chef runs inside a REAL hardware-accelerated virtual machine
+# Proves the REAL chef runs inside a hardware-accelerated virtual machine
 # (QEMU/KVM) on a hosted Linux runner — the rung above the OS sandboxes (its own
-# kernel, not just a confined process). Granular steps so a failure localizes
-# via the API's per-step conclusions (CI logs need auth).
-#
-# Stage 1 (this file): build a rootfs from a Dockerfile, boot it in a KVM VM
-# using the runner's own kernel, and have Python + cryptography run INSIDE the
-# VM and write a result the host reads back. Stage 2 swaps the payload for the
-# real signed-ticket chef and asserts a byte-identical draft.
+# kernel, not just a confined process). The chef verifies the cashier signature
+# INSIDE the VM, reads the fixture, and writes a draft; the host asserts that
+# draft is byte-identical to the same chef run outside the VM. Granular steps so
+# a failure localizes via the API's per-step conclusions (CI logs need auth).
 
 on:
   push:
@@ -24,6 +21,13 @@ jobs:
       - name: install qemu + ext4 tools
         run: sudo apt-get update -qq && sudo apt-get install -y -qq qemu-system-x86 e2fsprogs
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: install package on the host (for signing + the reference run)
+        run: pip install -e .
+
       - name: build the chef rootfs image
         run: docker build -t sentinel-microvm-rootfs -f microvm/Dockerfile.rootfs .
 
@@ -37,17 +41,28 @@ jobs:
           dd if=/dev/zero of=rootfs.ext4 bs=1M count=1500 status=none
           sudo mkfs.ext4 -q -d rootfs rootfs.ext4
 
-      - name: build the I/O disk with a python+cryptography payload
+      - name: generate a real signed order + run the chef on the host (reference)
         run: |
           set -e
-          mkdir io
+          python microvm/make_order.py io \
+            sentinel_slice/kitchen/fixtures/mailbox/user.kenji/t-001.txt
+          # the payload the VM's init runs: the REAL chef, verifying the ticket.
           cat > io/run.sh <<'EOF'
-          python3 -c "import cryptography, pathlib; pathlib.Path('/io/marker').write_text('MICROVM_OK cryptography=' + cryptography.__version__)"
+          python3 /opt/sentinel/sentinel_slice/chef/chef_main.py /io/pub.pem /io/fixtures /io/out < /io/ticket.json
+          echo "chef_exit=$?"
           EOF
-          dd if=/dev/zero of=io.ext4 bs=1M count=32 status=none
+          # reference: the same chef, same inputs, OUTSIDE the VM.
+          mkdir hostout
+          python sentinel_slice/chef/chef_main.py io/pub.pem io/fixtures hostout < io/ticket.json
+          test -f hostout/output.txt
+
+      - name: build the I/O disk (pub key, ticket, fixture, out, run.sh)
+        run: |
+          set -e
+          dd if=/dev/zero of=io.ext4 bs=1M count=64 status=none
           mkfs.ext4 -q -d io io.ext4
 
-      - name: boot the rootfs in a KVM virtual machine
+      - name: run the real chef inside a KVM virtual machine
         run: |
           set -e
           timeout 150 sudo qemu-system-x86_64 -accel kvm -m 1024 -smp 1 -nographic -no-reboot \
@@ -57,10 +72,12 @@ jobs:
             -drive file=rootfs.ext4,format=raw,if=virtio \
             -drive file=io.ext4,format=raw,if=virtio || true
 
-      - name: read what the microVM wrote back (decisive)
+      - name: the VM's chef output is byte-identical to the host chef (decisive)
         run: |
           set -e
-          mkdir -p out
-          sudo mount -o loop io.ext4 out
-          echo "--- guest console.log ---"; sudo cat out/console.log 2>/dev/null || echo "(no console.log)"
-          sudo grep -q "MICROVM_OK" out/marker
+          mkdir -p mnt
+          sudo mount -o loop io.ext4 mnt
+          echo "--- guest console.log ---"; sudo cat mnt/console.log 2>/dev/null || echo "(none)"
+          sudo test -f mnt/out/output.txt
+          sudo cmp mnt/out/output.txt hostout/output.txt
+          sudo head -1 mnt/out/output.txt | grep -q "^Re:"
