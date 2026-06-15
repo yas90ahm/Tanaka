@@ -1,0 +1,66 @@
+name: microvm-isolation
+
+# Proves the chef runs inside a REAL hardware-accelerated virtual machine
+# (QEMU/KVM) on a hosted Linux runner — the rung above the OS sandboxes (its own
+# kernel, not just a confined process). Granular steps so a failure localizes
+# via the API's per-step conclusions (CI logs need auth).
+#
+# Stage 1 (this file): build a rootfs from a Dockerfile, boot it in a KVM VM
+# using the runner's own kernel, and have Python + cryptography run INSIDE the
+# VM and write a result the host reads back. Stage 2 swaps the payload for the
+# real signed-ticket chef and asserts a byte-identical draft.
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  kvm-microvm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install qemu + ext4 tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq qemu-system-x86 e2fsprogs
+
+      - name: build the chef rootfs image
+        run: docker build -t sentinel-microvm-rootfs -f microvm/Dockerfile.rootfs .
+
+      - name: export the image to an ext4 root disk
+        run: |
+          set -e
+          cid=$(docker create sentinel-microvm-rootfs)
+          mkdir rootfs
+          docker export "$cid" | sudo tar -C rootfs -xf -
+          docker rm "$cid"
+          dd if=/dev/zero of=rootfs.ext4 bs=1M count=1500 status=none
+          sudo mkfs.ext4 -q -d rootfs rootfs.ext4
+
+      - name: build the I/O disk with a python+cryptography payload
+        run: |
+          set -e
+          mkdir io
+          cat > io/run.sh <<'EOF'
+          python3 -c "import cryptography, pathlib; pathlib.Path('/io/marker').write_text('MICROVM_OK cryptography=' + cryptography.__version__)"
+          EOF
+          dd if=/dev/zero of=io.ext4 bs=1M count=32 status=none
+          mkfs.ext4 -q -d io io.ext4
+
+      - name: boot the rootfs in a KVM virtual machine
+        run: |
+          set -e
+          timeout 150 sudo qemu-system-x86_64 -accel kvm -m 1024 -smp 1 -nographic -no-reboot \
+            -kernel /boot/vmlinuz-"$(uname -r)" \
+            -initrd /boot/initrd.img-"$(uname -r)" \
+            -append "console=ttyS0 root=/dev/vda rw init=/sbin/microvm-init panic=-1 reboot=t" \
+            -drive file=rootfs.ext4,format=raw,if=virtio \
+            -drive file=io.ext4,format=raw,if=virtio || true
+
+      - name: read what the microVM wrote back (decisive)
+        run: |
+          set -e
+          mkdir -p out
+          sudo mount -o loop io.ext4 out
+          echo "--- guest console.log ---"; sudo cat out/console.log 2>/dev/null || echo "(no console.log)"
+          sudo grep -q "MICROVM_OK" out/marker

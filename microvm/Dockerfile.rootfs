@@ -1,0 +1,19 @@
+# Root filesystem for the chef microVM. Built as a container image, then
+# exported to an ext4 disk the VM boots from. It carries exactly what the chef
+# needs to run inside a real KVM virtual machine: Python, cryptography, the
+# Sentinel package, busybox (for a tiny PID-1 init: mount + poweroff), and the
+# init script that runs the payload off the I/O disk and powers the VM off.
+FROM python:3.12-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends busybox \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir cryptography
+
+# The Sentinel package (so the real chef_main.py can run in the guest).
+COPY sentinel_slice /opt/sentinel/sentinel_slice
+ENV PYTHONPATH=/opt/sentinel
+
+COPY microvm/init.sh /sbin/microvm-init
+RUN chmod +x /sbin/microvm-init
