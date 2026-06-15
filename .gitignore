@@ -52,3 +52,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Console dev admin private keys (generated each run by sentinel-console without --admins)
+console_dev_admins/

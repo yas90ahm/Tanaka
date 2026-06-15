@@ -8,6 +8,7 @@ gate (only an author curates). Plus an HTTP smoke for create->menu.
 
 import json
 import threading
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -18,7 +19,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from sentinel_slice.authoring.policy_store import PolicyStore
-from sentinel_slice.console.auth import Admin, AdminRegistry, ROLE_AUTHOR, ROLE_REVIEWER
+from sentinel_slice.console import signed_auth
+from sentinel_slice.console.auth import Admin, ROLE_AUTHOR, ROLE_REVIEWER
 from sentinel_slice.console.server import make_server
 from sentinel_slice.console.service import (
     AuthError,
@@ -135,7 +137,7 @@ def test_only_author_curates(tmp_path):
 
 def test_http_create_then_menu(tmp_path):
     svc = _service(tmp_path)
-    reg = AdminRegistry({"a": AUTHOR})
+    reg, signers = signed_auth.dev_registry()
     server = make_server(svc, reg, host="127.0.0.1", port=0)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     host, port = server.server_address
@@ -143,8 +145,11 @@ def test_http_create_then_menu(tmp_path):
 
     def call(method, path, body=None):
         data = None if body is None else json.dumps(body).encode("utf-8")
-        req = urllib.request.Request(base + path, data=data, method=method,
-                                     headers={"X-Admin-Token": "a"})
+        req = urllib.request.Request(base + path, data=data, method=method)
+        for k, v in signed_auth.sign_headers(
+                signers["tanaka"], admin_id="tanaka", method=method, path=path,
+                body=(data if data is not None else b""), now=time.time()).items():
+            req.add_header(k, v)
         if data is not None:
             req.add_header("Content-Type", "application/json")
         try:

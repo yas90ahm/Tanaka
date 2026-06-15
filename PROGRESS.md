@@ -194,11 +194,23 @@ phase is engine-only: no UI, no HTTP yet.
 
 The operator control loop, end to end over HTTP — no browser yet.
 
-- **`console/auth.py` — BUILT (MOCK identity).** Token→Admin lookup with two
-  roles (author, reviewer). LOUDLY FLAGGED as a mock: no password, session,
-  SSO, or expiry — only the identity SOURCE is mocked. The separation-of-
-  duties enforcement built on it is REAL. Real deployments swap `resolve()`
-  for SSO/OIDC.
+- **`console/auth.py` + `console/signed_auth.py` — BUILT (REAL identity).**
+  Identity is no longer a mock token table. Each admin holds an Ed25519
+  keypair; every `/api` request carries `X-Admin-Id` / `X-Admin-Timestamp` /
+  `X-Admin-Signature` over a canonical `(scheme, method, path, id,
+  sha256(body))` string, verified against a registry of admin PUBLIC keys
+  (`KeyRegistry`). So possession of the private key is PROVEN per request, the
+  method+path+body are integrity-bound, and stale requests (outside a 300s
+  freshness window) are rejected — no shared secret is ever sent or stored.
+  `auth.py` now holds just the `Admin` type + the two roles. The separation-of-
+  duties enforcement is unchanged and still REAL. Federating these keys to a
+  directory (SSO/OIDC) is the only remaining mock-frontier piece and slots in
+  behind the same `KeyRegistry` seam. Unit-tested (`test_signed_auth.py`): wrong
+  key / tampered method-path-body / stale-or-future timestamp / unknown id /
+  missing header all fail; the exact signed-bytes wire format is pinned so the
+  browser (WebCrypto Ed25519) reproduces it. `--admins FILE` loads a pubkey
+  registry; without it, `main()` generates REAL dev keypairs (gitignored) for
+  the operator to load in the browser.
 - **`console/service.py` — BUILT.** All console logic, transport-free (so a
   FastAPI surface later calls it unchanged): capabilities, policies, simulate,
   publish, approve, rollback, activity, receipt, run_drill. Trust boundaries
@@ -212,7 +224,8 @@ The operator control loop, end to end over HTTP — no browser yet.
   rejected; tested).
 - **`console/server.py` — BUILT.** Stdlib single-threaded HTTP on 127.0.0.1
   (single-threaded ON PURPOSE: serializes appends so the policy chain cannot
-  fork). Routes all endpoints, token via `X-Admin-Token`, maps typed errors to
+  fork). Routes all endpoints, authenticates each via the signed request (reads
+  the raw body first since the signature binds it), maps typed errors to
   401/403/404/409/400. `sentinel-console` entry point + `sentinel-verify-policy`.
   An e2e test drives author→simulate→publish→approve→activity over a real
   socket and verifies the resulting policy history standalone.
@@ -225,7 +238,9 @@ The operator control loop, end to end over HTTP — no browser yet.
   live coaching warnings on over-rate / second-admin caps; Simulate; Publish;
   Approve on pending), Activity (chain status, deterministic findings with
   click-through to individual receipts, Run Drill). Talks only to same-origin
-  /api with the token in `X-Admin-Token`.
+  /api, signing each request with WebCrypto Ed25519 — the operator loads their
+  private key into the page (it never leaves the browser; only signatures are
+  sent). Requires a localhost secure context.
 - **Served safely — BUILT.** `server.py` serves the page/script from 127.0.0.1
   with a strict CSP (`default-src 'none'`, `script-src 'self'`, no external
   origins, no inline script), `X-Content-Type-Options: nosniff`,

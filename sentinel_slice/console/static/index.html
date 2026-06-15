@@ -77,14 +77,16 @@
     <h1>Sentinel Loop — Operator Console</h1>
     <div class="sub">Control plane · localhost only · authoring &amp; audit (never sees content)</div>
     <div class="bar">
-      <label>Admin token:
-        <input type="text" id="token" size="22" placeholder="X-Admin-Token" />
+      <label>Admin id:
+        <input type="text" id="adminId" size="16" placeholder="tanaka" />
       </label>
-      <button class="ghost" id="useAuthor">dev author</button>
-      <button class="ghost" id="useReviewer">dev reviewer</button>
+      <label>Private key (PEM):
+        <textarea id="adminKey" rows="2" cols="36" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+      </label>
+      <button class="ghost" id="loadIdentity">Load identity</button>
       <span class="muted" id="whoami"></span>
     </div>
-    <div class="flag">MOCK identity (static dev tokens). Real deployment swaps in SSO. This page loads zero external resources.</div>
+    <div class="flag">REAL identity: every request is Ed25519-signed and the server holds only public keys; your private key never leaves this page. Needs a localhost secure context. This page loads zero external resources.</div>
   </header>
 
   <nav>

@@ -6,9 +6,11 @@ serialize JSON. All business logic and authorization live in service.py, so
 this file has no policy decisions in it — swapping in FastAPI later replaces
 only this module (CONSOLE_SPEC non-negotiable #5).
 
-Binds 127.0.0.1 ONLY. The token arrives in the `X-Admin-Token` header. This is
-the in-process trust boundary exposed for an operator UI; it is NOT a hardened
-public endpoint (no TLS, MOCK identity) — see CONSOLE_SPEC.
+Binds 127.0.0.1 ONLY. Identity is REAL Ed25519 request signing (see
+signed_auth.py): every /api request carries X-Admin-Id / X-Admin-Timestamp /
+X-Admin-Signature, verified against a registry of admin PUBLIC keys. It is
+still not a hardened public endpoint (no TLS) — it is the operator's localhost
+control plane.
 
 Routes:
     GET  /api/capabilities
@@ -27,9 +29,11 @@ import argparse
 import json
 import os
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from sentinel_slice.console.auth import AdminRegistry, default_dev_registry, load_registry
+from sentinel_slice.console import signed_auth
+from sentinel_slice.console.signed_auth import KeyRegistry
 from sentinel_slice.console.service import ConsoleError, BadRequestError
 
 _STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -57,7 +61,7 @@ _STATIC_FILES = {
 }
 
 
-def make_handler(service, registry: AdminRegistry):
+def make_handler(service, registry: KeyRegistry):
     class Handler(BaseHTTPRequestHandler):
         # quiet default logging in tests
         def log_message(self, *args):  # noqa: D401
@@ -81,9 +85,10 @@ def make_handler(service, registry: AdminRegistry):
             self.wfile.write(body)
 
         def _send_static(self, path):
-            """Serve the self-contained console page/script. No token needed —
-            the page is what lets the operator enter their token; every /api
-            call it then makes is authenticated. Returns True if handled."""
+            """Serve the self-contained console page/script. No identity needed
+            to fetch the page — it carries no data and is what lets the operator
+            load their key; every /api call it then makes is a SIGNED request.
+            Returns True if handled."""
             entry = _STATIC_FILES.get(path)
             if entry is None:
                 return False
@@ -102,12 +107,11 @@ def make_handler(service, registry: AdminRegistry):
             self.wfile.write(body)
             return True
 
-        def _admin(self):
-            return registry.resolve(self.headers.get("X-Admin-Token"))
-
-        def _body(self):
+        def _raw_body(self):
             length = int(self.headers.get("Content-Length") or 0)
-            raw = self.rfile.read(length) if length else b""
+            return self.rfile.read(length) if length else b""
+
+        def _parse_body(self, raw):
             if not raw:
                 return {}
             try:
@@ -119,15 +123,20 @@ def make_handler(service, registry: AdminRegistry):
             return obj
 
         def _dispatch(self, method):
-            admin = self._admin()
+            # Read the raw body FIRST: the signature covers it. Then verify the
+            # signed request against the registry of admin public keys.
+            raw = self._raw_body() if method == "POST" else b""
+            admin = signed_auth.verify(
+                registry, method=method, path=self.path, body=raw,
+                header=self.headers.get, now=time.time())
             if admin is None:
-                # Unknown/missing token: 401 before any work.
+                # Missing/invalid/stale signature, or unknown id: 401, no work.
                 self._send_json(401, {"error": "unauthorized", "detail":
-                                       "missing or unknown X-Admin-Token"})
+                                       "missing or invalid signed request"})
                 return
             path = self.path.split("?", 1)[0].rstrip("/") or "/"
             try:
-                result = self._route(method, path, admin)
+                result = self._route(method, path, admin, raw)
                 self._send_json(200, result)
             except ConsoleError as exc:
                 self._send_json(
@@ -135,7 +144,7 @@ def make_handler(service, registry: AdminRegistry):
                     {"error": type(exc).__name__, "detail": str(exc)},
                 )
 
-        def _route(self, method, path, admin):
+        def _route(self, method, path, admin, raw=b""):
             if method == "GET":
                 if path == "/api/capabilities":
                     return service.capabilities(admin)
@@ -151,7 +160,7 @@ def make_handler(service, registry: AdminRegistry):
                     return service.menu(admin)
                 raise _not_found(path)
             if method == "POST":
-                body = self._body()
+                body = self._parse_body(raw)
                 if path == "/api/policies/simulate":
                     return service.simulate(
                         admin,
@@ -185,9 +194,9 @@ def make_handler(service, registry: AdminRegistry):
             raise _not_found(path)
 
         def do_GET(self):
-            # Static console page/script load WITHOUT a token (they carry no
-            # data and are what lets the operator enter a token). All /api
-            # routes still require the token via _dispatch.
+            # Static console page/script load WITHOUT identity (they carry no
+            # data and are what lets the operator load their key). All /api
+            # routes still require a valid SIGNED request via _dispatch.
             path = self.path.split("?", 1)[0]
             if path in _STATIC_FILES:
                 self._send_static(path)
@@ -285,13 +294,20 @@ def build_default_service(
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="sentinel-console",
-        description="Operator console API (MOCK identity, localhost only).",
+        description="Operator console API (real Ed25519 signed-request "
+        "identity, localhost only).",
     )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--ledger", default="ledger.db")
     parser.add_argument("--policy-db", default="policy_history.db")
-    parser.add_argument("--admins", default=None, help="MOCK admin token config JSON")
+    parser.add_argument("--admins", default=None,
+                        help="JSON registry of admin PUBLIC keys "
+                        '({"admins": {"<id>": {"pubkey_pem": "...", '
+                        '"role": "author|reviewer"}}})')
+    parser.add_argument("--dev-keys-dir", default="console_dev_admins",
+                        help="where to write generated DEV admin private keys "
+                        "when --admins is not given")
     args = parser.parse_args(argv)
 
     try:
@@ -302,21 +318,42 @@ def main(argv=None) -> int:
         print(exc)
         return 2
 
-    registry = (
-        load_registry(args.admins) if args.admins else default_dev_registry()
-    )
+    if args.admins:
+        registry = KeyRegistry.from_file(args.admins)
+        key_note = "admin public keys loaded from " + args.admins
+    else:
+        # Dev bootstrap: generate REAL admin keypairs and write the private
+        # keys to disk so the operator can load one in the browser. These are
+        # freshly generated each run (gitignored), not committed secrets.
+        from cryptography.hazmat.primitives import serialization as _ser
+
+        registry, signers = signed_auth.dev_registry()
+        os.makedirs(args.dev_keys_dir, exist_ok=True)
+        lines = []
+        for admin_id, priv in signers.items():
+            path = os.path.join(args.dev_keys_dir, admin_id + ".private.pem")
+            with open(path, "wb") as fh:
+                fh.write(priv.private_bytes(
+                    encoding=_ser.Encoding.PEM,
+                    format=_ser.PrivateFormat.PKCS8,
+                    encryption_algorithm=_ser.NoEncryption()))
+            lines.append("    {} ({}): {}".format(
+                admin_id, registry.get(admin_id).role, os.path.abspath(path)))
+        key_note = ("DEV identity — REAL Ed25519 admin keypairs generated this "
+                    "run. Load a private key in the browser to authenticate:\n"
+                    + "\n".join(lines))
+
     if args.host not in ("127.0.0.1", "localhost", "::1"):
         print(
             "WARNING: binding {} is NOT loopback. The console is the highest-"
             "value target and is designed for localhost / the operator's own "
-            "machine, with MOCK identity and no TLS. Exposing it off-host is "
-            "unsafe in the slice.".format(args.host)
+            "machine, with no TLS. Exposing it off-host is unsafe in the "
+            "slice.".format(args.host)
         )
     server = make_server(service, registry, host=args.host, port=args.port)
     print(
-        "Sentinel operator console on http://{}:{}\n"
-        "  open that URL in a browser; MOCK identity dev tokens: "
-        "dev-author-token / dev-reviewer-token".format(args.host, args.port)
+        "Sentinel operator console on http://{}:{}\n  {}".format(
+            args.host, args.port, key_note)
     )
     try:
         server.serve_forever()

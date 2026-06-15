@@ -2,10 +2,12 @@
   Sentinel Loop operator console — behavior.
 
   Self-contained, no framework, no external calls. Talks ONLY to this same
-  localhost origin's /api endpoints, sending the admin token in the
-  X-Admin-Token header (never a cookie — so a cross-origin page cannot forge
-  authenticated requests). This is the control plane: it authors policy and
-  reads receipts; it never touches payload content.
+  localhost origin's /api endpoints. Identity is REAL Ed25519 request signing
+  (WebCrypto): each request carries X-Admin-Id / X-Admin-Timestamp /
+  X-Admin-Signature over (scheme, method, path, id, ts, sha256(body)). The
+  operator's private key is imported here and never leaves the page — only
+  signatures are sent (never a cookie, never the key). This is the control
+  plane: it authors policy and reads receipts; it never touches payload content.
 */
 "use strict";
 
@@ -13,7 +15,49 @@ let CATALOG = [];           // [{id, risk_class, requires_second_admin, ...}]
 let EDITOR_ROLES = [];      // editable model: [{role, caps:Set, rate, paused:Set}]
 
 const $ = (id) => document.getElementById(id);
-const token = () => $("token").value.trim();
+
+/* ---------- identity: REAL Ed25519 signed requests ---------- */
+const SCHEME = "sentinel-console-auth-1";
+let ADMIN_ID = "";
+let SIGN_KEY = null;        // non-extractable WebCrypto Ed25519 private key
+
+function pemToDer(pem) {
+  const b64 = pem.replace(/-----[^-]+-----/g, "").replace(/\s+/g, "");
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function loadIdentity() {
+  ADMIN_ID = $("adminId").value.trim();
+  const pem = $("adminKey").value.trim();
+  if (!ADMIN_ID || !pem) { msg("Enter an admin id and paste a private key.", "bad"); return; }
+  try {
+    SIGN_KEY = await crypto.subtle.importKey(
+      "pkcs8", pemToDer(pem), { name: "Ed25519" }, false, ["sign"]);
+    $("whoami").textContent = "signed in: " + ADMIN_ID;
+    msg("Identity loaded — requests are now signed.", "ok");
+  } catch (e) {
+    SIGN_KEY = null;
+    msg("Could not load key (needs an Ed25519 PKCS8 PEM): " + e.message, "bad");
+  }
+}
+
+async function sha256hex(bytes) {
+  const h = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function authHeaders(method, path, bodyBytes) {
+  const ts = Math.floor(Date.now() / 1000).toString();
+  const digest = await sha256hex(bodyBytes);
+  const message = [SCHEME, method.toUpperCase(), path, ADMIN_ID, ts, digest].join("\n");
+  const sig = await crypto.subtle.sign(
+    { name: "Ed25519" }, SIGN_KEY, new TextEncoder().encode(message));
+  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig)));
+  return { "X-Admin-Id": ADMIN_ID, "X-Admin-Timestamp": ts, "X-Admin-Signature": sigB64 };
+}
 
 function msg(text, kind) {
   const el = $("msg");
@@ -23,12 +67,14 @@ function msg(text, kind) {
 
 async function api(method, path, body) {
   const opts = { method, headers: {} };
-  const tok = token();
-  if (tok) opts.headers["X-Admin-Token"] = tok;
+  let bodyBytes = new Uint8Array(0);
   if (body !== undefined) {
+    const payload = JSON.stringify(body);
     opts.headers["Content-Type"] = "application/json";
-    opts.body = JSON.stringify(body);
+    opts.body = payload;
+    bodyBytes = new TextEncoder().encode(payload);
   }
+  if (SIGN_KEY) Object.assign(opts.headers, await authHeaders(method, path, bodyBytes));
   const resp = await fetch(path, opts);
   let data = null;
   try { data = await resp.json(); } catch (e) { data = null; }
@@ -53,8 +99,7 @@ document.querySelectorAll("nav button").forEach((b) => {
   });
 });
 
-$("useAuthor").addEventListener("click", () => { $("token").value = "dev-author-token"; $("whoami").textContent = "(author)"; });
-$("useReviewer").addEventListener("click", () => { $("token").value = "dev-reviewer-token"; $("whoami").textContent = "(reviewer)"; });
+$("loadIdentity").addEventListener("click", loadIdentity);
 
 /* ---------- capabilities ---------- */
 async function loadCapabilities() {

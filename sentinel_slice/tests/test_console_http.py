@@ -1,17 +1,19 @@
-"""Console HTTP transport e2e (v0.3 phase 2) — stdlib only, no requests.
+"""Console HTTP transport e2e — stdlib only, no requests.
 
 Starts the real server on an ephemeral localhost port in a background thread
-and drives the full operator loop over HTTP exactly as a browser would:
-author -> simulate -> publish (second-admin) -> reviewer approves -> activity.
-Asserts status codes, the policy-store effects, and that the policy history
-verifies standalone afterward. Also pins the transport's auth mapping
-(401 unknown token, 403 wrong role).
+and drives the full operator loop over HTTP exactly as a browser would, now
+authenticating with REAL Ed25519 SIGNED REQUESTS (X-Admin-Id / -Timestamp /
+-Signature): author -> simulate -> publish (second-admin) -> reviewer approves
+-> activity. Asserts status codes, the policy-store effects, and that the
+policy history verifies standalone. Also pins the transport's auth mapping
+(401 no signature / unknown id / bad signature, 403 wrong role).
 """
 
 import json
 import subprocess
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -20,7 +22,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from sentinel_slice.authoring.policy_store import PolicyStore
-from sentinel_slice.console.auth import Admin, AdminRegistry, ROLE_AUTHOR, ROLE_REVIEWER
+from sentinel_slice.console import signed_auth
 from sentinel_slice.console.server import make_server
 from sentinel_slice.console.service import ConsoleService
 from sentinel_slice.menu.catalog import load_catalog
@@ -32,14 +34,7 @@ VERIFY_POLICY = SENTINEL_DIR / "verify_policy_history.py"
 DRAFT = "cap.email.draft_reply.v1"
 PAY = "cap.payment.initiate.v1"
 
-A_TOK, R_TOK = "tok-author", "tok-reviewer"
-
-
-def _registry():
-    return AdminRegistry({
-        A_TOK: Admin(id="tanaka", role=ROLE_AUTHOR),
-        R_TOK: Admin(id="rao", role=ROLE_REVIEWER),
-    })
+AUTHOR_ID, REVIEWER_ID = "tanaka", "reviewer-rao"
 
 
 def _service(tmp_path):
@@ -60,12 +55,19 @@ def _service(tmp_path):
     return svc, pub
 
 
-def _call(base, method, path, token=None, body=None):
+def _call(base, method, path, *, admin_id=None, signer=None, body=None,
+          raw_override=None):
     url = base + path
     data = None if body is None else json.dumps(body).encode("utf-8")
+    if raw_override is not None:
+        data = raw_override
     req = urllib.request.Request(url, data=data, method=method)
-    if token is not None:
-        req.add_header("X-Admin-Token", token)
+    if signer is not None:
+        signed_body = data if data is not None else b""
+        for k, v in signed_auth.sign_headers(
+                signer, admin_id=admin_id, method=method, path=path,
+                body=signed_body, now=time.time()).items():
+            req.add_header(k, v)
     if data is not None:
         req.add_header("Content-Type", "application/json")
     try:
@@ -77,25 +79,27 @@ def _call(base, method, path, token=None, body=None):
 
 def _run_server(tmp_path):
     svc, pub = _service(tmp_path)
-    server = make_server(svc, _registry(), host="127.0.0.1", port=0)
+    registry, signers = signed_auth.dev_registry()
+    server = make_server(svc, registry, host="127.0.0.1", port=0)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     host, port = server.server_address
     base = "http://{}:{}".format(host, port)
-    return server, base, svc, pub
+    return server, base, pub, signers
 
 
 def test_full_operator_loop_over_http(tmp_path):
-    server, base, svc, pub = _run_server(tmp_path)
+    server, base, pub, signers = _run_server(tmp_path)
+    author, reviewer = signers[AUTHOR_ID], signers[REVIEWER_ID]
     try:
-        # capabilities readable by the author.
-        status, caps = _call(base, "GET", "/api/capabilities", token=A_TOK)
+        status, caps = _call(base, "GET", "/api/capabilities",
+                             admin_id=AUTHOR_ID, signer=author)
         assert status == 200
         ids = [c["id"] for c in caps["capabilities"]]
         assert DRAFT in ids and PAY in ids
 
-        # simulate (no writes).
-        status, sim = _call(base, "POST", "/api/policies/simulate", token=A_TOK,
+        status, sim = _call(base, "POST", "/api/policies/simulate",
+                            admin_id=AUTHOR_ID, signer=author,
                             body={"candidate_policy": [{
                                 "role": "account_manager",
                                 "allowed_capabilities": [DRAFT],
@@ -108,8 +112,8 @@ def test_full_operator_loop_over_http(tmp_path):
         assert status == 200
         assert sim["results"][0]["allowed"] is True
 
-        # publish baseline (active immediately).
-        status, pub1 = _call(base, "POST", "/api/policies/publish", token=A_TOK,
+        status, pub1 = _call(base, "POST", "/api/policies/publish",
+                             admin_id=AUTHOR_ID, signer=author,
                              body={"candidate_policy": [{
                                  "role": "account_manager",
                                  "allowed_capabilities": [DRAFT],
@@ -117,8 +121,8 @@ def test_full_operator_loop_over_http(tmp_path):
                                  "reason": "baseline"})
         assert status == 200 and pub1["status"] == "active"
 
-        # publish a payments policy -> pending (second admin needed).
-        status, pub2 = _call(base, "POST", "/api/policies/publish", token=A_TOK,
+        status, pub2 = _call(base, "POST", "/api/policies/publish",
+                             admin_id=AUTHOR_ID, signer=author,
                              body={"candidate_policy": [{
                                  "role": "account_manager",
                                  "allowed_capabilities": [DRAFT, PAY],
@@ -130,65 +134,68 @@ def test_full_operator_loop_over_http(tmp_path):
         # author cannot approve own pending change -> 403.
         status, _ = _call(base, "POST",
                           "/api/policies/{}/approve".format(pending_seq),
-                          token=A_TOK)
+                          admin_id=AUTHOR_ID, signer=author)
         assert status == 403
 
         # reviewer approves -> 200, active.
         status, appr = _call(base, "POST",
                              "/api/policies/{}/approve".format(pending_seq),
-                             token=R_TOK)
+                             admin_id=REVIEWER_ID, signer=reviewer)
         assert status == 200 and appr["status"] == "active"
-        assert appr["approved_by"] == "rao"
+        assert appr["approved_by"] == REVIEWER_ID
 
-        # policies endpoint shows payments now active.
-        status, pol = _call(base, "GET", "/api/policies", token=R_TOK)
+        status, pol = _call(base, "GET", "/api/policies",
+                            admin_id=REVIEWER_ID, signer=reviewer)
         assert status == 200
         assert pol["active"]["policies"][0]["allowed_capabilities"] == [DRAFT, PAY]
 
-        # activity readable, empty live ledger -> 0 receipts.
-        status, act = _call(base, "GET", "/api/activity", token=R_TOK)
+        status, act = _call(base, "GET", "/api/activity",
+                            admin_id=REVIEWER_ID, signer=reviewer)
         assert status == 200 and act["receipts_total"] == 0
     finally:
         server.shutdown()
 
-    # The policy history the loop produced verifies standalone.
     proc = subprocess.run(
         [sys.executable, str(VERIFY_POLICY),
          str(tmp_path / "policy.db"), str(pub)],
         capture_output=True, text=True, cwd=str(REPO_ROOT))
     assert proc.returncode == 0, (proc.stdout, proc.stderr)
-    # baseline + pending + approved-active = 3 versions.
     assert proc.stdout.strip() == "OK verified=3"
 
 
 def test_http_auth_mapping(tmp_path):
-    server, base, _svc, _pub = _run_server(tmp_path)
+    server, base, _pub, signers = _run_server(tmp_path)
+    author, reviewer = signers[AUTHOR_ID], signers[REVIEWER_ID]
+    # A real keypair NOT in the registry.
+    outsider, _ = signed_auth.generate_admin("author")
     try:
-        # No token -> 401.
+        # No signature headers -> 401.
         status, _ = _call(base, "GET", "/api/capabilities")
         assert status == 401
-        # Unknown token -> 401.
-        status, _ = _call(base, "GET", "/api/capabilities", token="bogus")
+        # Unknown admin id (signed, but id not registered) -> 401.
+        status, _ = _call(base, "GET", "/api/capabilities",
+                          admin_id="ghost", signer=outsider)
         assert status == 401
-        # Reviewer publishing -> 403 (wrong role).
-        status, _ = _call(base, "POST", "/api/policies/publish", token=R_TOK,
+        # Registered id but signed with the WRONG key -> 401 (bad signature).
+        status, _ = _call(base, "GET", "/api/capabilities",
+                          admin_id=AUTHOR_ID, signer=outsider)
+        assert status == 401
+        # Reviewer publishing -> 403 (wrong role, identity is valid).
+        status, _ = _call(base, "POST", "/api/policies/publish",
+                          admin_id=REVIEWER_ID, signer=reviewer,
                           body={"candidate_policy": [{
                               "role": "account_manager",
                               "allowed_capabilities": [DRAFT],
                               "rate_limit_per_hour": 5}], "reason": "x"})
         assert status == 403
-        # Unknown route -> 404.
-        status, _ = _call(base, "GET", "/api/nope", token=A_TOK)
+        # Unknown route (validly signed) -> 404.
+        status, _ = _call(base, "GET", "/api/nope",
+                          admin_id=AUTHOR_ID, signer=author)
         assert status == 404
-        # Bad JSON body -> 400.
-        req = urllib.request.Request(
-            base + "/api/policies/publish", data=b"{not json",
-            method="POST", headers={"X-Admin-Token": A_TOK,
-                                    "Content-Type": "application/json"})
-        try:
-            urllib.request.urlopen(req)
-            assert False, "expected HTTPError"
-        except urllib.error.HTTPError as exc:
-            assert exc.code == 400
+        # Validly-signed but non-JSON body -> 400 (auth passes, parse fails).
+        status, _ = _call(base, "POST", "/api/policies/publish",
+                          admin_id=AUTHOR_ID, signer=author,
+                          raw_override=b"{not json")
+        assert status == 400
     finally:
         server.shutdown()
