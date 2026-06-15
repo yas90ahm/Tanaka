@@ -290,11 +290,13 @@ def main(argv=None) -> int:
                         "$SENTINEL_HOME)")
     parser.add_argument("--sandbox", default="auto",
                         choices=["auto", "subprocess", "appcontainer", "seccomp",
-                                 "macsandbox"],
+                                 "macsandbox", "microvm"],
                         help="chef containment: auto (the app home's set-up "
                         "backend, else subprocess), or force one — appcontainer "
                         "(Windows) / seccomp (Linux) / macsandbox (macOS), each "
-                        "an OS-enforced no-network boundary")
+                        "an OS-enforced no-network boundary; or microvm (Linux "
+                        "KVM VM — its own kernel; needs a prebuilt rootfs/kernel "
+                        "via $SENTINEL_MICROVM_ROOTFS / _KERNEL / _INITRD)")
     parser.add_argument("--confirm", action="store_true",
                         help="route every call through the personal-"
                         "permission gate: Ask capabilities pop an ON-DEVICE "
@@ -406,6 +408,21 @@ def _resolve_sandbox(choice, paths):
                   "subprocess contract.", file=sys.stderr)
             return None
         return mac
+    if want == "microvm":
+        import os
+
+        from sentinel_slice.chef.microvm_sandbox import MicroVmSandbox
+        mv = MicroVmSandbox(
+            rootfs=os.environ.get("SENTINEL_MICROVM_ROOTFS", ""),
+            kernel=os.environ.get("SENTINEL_MICROVM_KERNEL", ""),
+            initrd=os.environ.get("SENTINEL_MICROVM_INITRD"))
+        if not mv.is_available():
+            print("sentinel-mcp: microvm requested but unavailable here (needs "
+                  "Linux + /dev/kvm + qemu + a prebuilt rootfs/kernel in "
+                  "$SENTINEL_MICROVM_ROOTFS/_KERNEL); falling back to the "
+                  "subprocess contract.", file=sys.stderr)
+            return None
+        return mv
     return None  # subprocess contract (run_chef's default)
 
 

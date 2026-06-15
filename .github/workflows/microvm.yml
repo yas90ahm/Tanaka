@@ -1,11 +1,11 @@
 name: microvm-isolation
 
-# Proves the REAL chef runs inside a hardware-accelerated virtual machine
-# (QEMU/KVM) on a hosted Linux runner — the rung above the OS sandboxes (its own
-# kernel, not just a confined process). The chef verifies the cashier signature
-# INSIDE the VM, reads the fixture, and writes a draft; the host asserts that
-# draft is byte-identical to the same chef run outside the VM. Granular steps so
-# a failure localizes via the API's per-step conclusions (CI logs need auth).
+# Proves the MicroVmSandbox BACKEND runs the real chef inside a hardware-
+# accelerated virtual machine (QEMU/KVM) on a hosted Linux runner — the rung
+# above the OS sandboxes (its own kernel, not just a confined process). The
+# gated test drives the actual backend through the normal loop and asserts the
+# in-VM chef's draft is byte-identical to the subprocess backend. Granular steps
+# so a failure localizes via the API's per-step conclusions (CI logs need auth).
 
 on:
   push:
@@ -25,8 +25,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: install package on the host (for signing + the reference run)
-        run: pip install -e .
+      - name: install package
+        run: pip install -e ".[dev]"
 
       - name: build the chef rootfs image
         run: docker build -t sentinel-microvm-rootfs -f microvm/Dockerfile.rootfs .
@@ -40,44 +40,19 @@ jobs:
           docker rm "$cid"
           dd if=/dev/zero of=rootfs.ext4 bs=1M count=1500 status=none
           sudo mkfs.ext4 -q -d rootfs rootfs.ext4
+          sudo chmod 644 rootfs.ext4
 
-      - name: generate a real signed order + run the chef on the host (reference)
+      - name: stage a readable kernel + initrd and open /dev/kvm
         run: |
           set -e
-          python microvm/make_order.py io \
-            sentinel_slice/kitchen/fixtures/mailbox/user.kenji/t-001.txt
-          # the payload the VM's init runs: the REAL chef, verifying the ticket.
-          cat > io/run.sh <<'EOF'
-          python3 /opt/sentinel/sentinel_slice/chef/chef_main.py /io/pub.pem /io/fixtures /io/out < /io/ticket.json
-          echo "chef_exit=$?"
-          EOF
-          # reference: the same chef, same inputs, OUTSIDE the VM.
-          mkdir hostout
-          python sentinel_slice/chef/chef_main.py io/pub.pem io/fixtures hostout < io/ticket.json
-          test -f hostout/output.txt
+          sudo cp /boot/vmlinuz-"$(uname -r)" vmlinuz && sudo chmod 644 vmlinuz
+          sudo cp /boot/initrd.img-"$(uname -r)" initrd && sudo chmod 644 initrd
+          sudo chmod 666 /dev/kvm
 
-      - name: build the I/O disk (pub key, ticket, fixture, out, run.sh)
-        run: |
-          set -e
-          dd if=/dev/zero of=io.ext4 bs=1M count=64 status=none
-          mkfs.ext4 -q -d io io.ext4
-
-      - name: run the real chef inside a KVM virtual machine
-        run: |
-          set -e
-          timeout 150 sudo qemu-system-x86_64 -accel kvm -m 1024 -smp 1 -nographic -no-reboot \
-            -kernel /boot/vmlinuz-"$(uname -r)" \
-            -initrd /boot/initrd.img-"$(uname -r)" \
-            -append "console=ttyS0 root=/dev/vda rw init=/sbin/microvm-init panic=-1 reboot=t" \
-            -drive file=rootfs.ext4,format=raw,if=virtio \
-            -drive file=io.ext4,format=raw,if=virtio || true
-
-      - name: the VM's chef output is byte-identical to the host chef (decisive)
-        run: |
-          set -e
-          mkdir -p mnt
-          sudo mount -o loop io.ext4 mnt
-          echo "--- guest console.log ---"; sudo cat mnt/console.log 2>/dev/null || echo "(none)"
-          sudo test -f mnt/out/output.txt
-          sudo cmp mnt/out/output.txt hostout/output.txt
-          sudo head -1 mnt/out/output.txt | grep -q "^Re:"
+      - name: prove MicroVmSandbox runs the real chef in a KVM VM (byte-identical)
+        env:
+          SENTINEL_TEST_MICROVM: "1"
+          SENTINEL_MICROVM_ROOTFS: ${{ github.workspace }}/rootfs.ext4
+          SENTINEL_MICROVM_KERNEL: ${{ github.workspace }}/vmlinuz
+          SENTINEL_MICROVM_INITRD: ${{ github.workspace }}/initrd
+        run: python -m pytest sentinel_slice/tests/test_microvm_sandbox.py -v

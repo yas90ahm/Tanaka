@@ -611,6 +611,30 @@ containment class actually ran.
   in-process OS microsandbox is **no longer Windows-only** — Windows
   (AppContainer) / Linux (seccomp+Landlock) / macOS (Seatbelt), each proven on
   its own CI runner, each honestly an OS sandbox (not a VM/TEE).
+- **`chef/microvm_sandbox.py` — BUILT, and the rung ABOVE the OS sandboxes: a
+  REAL hardware-accelerated virtual machine.** `MicroVmSandbox`
+  (`containment="microvm-kvm"`) runs the chef inside a per-order KVM VM via
+  QEMU — its OWN kernel, so a kernel exploit in a hostile chef hits the
+  throwaway guest, not the host. A prebuilt rootfs (Python + cryptography + the
+  Sentinel package + a busybox PID-1 init, `microvm/Dockerfile.rootfs`) boots
+  copy-on-write (`snapshot=on`, ephemeral); the signed ticket + cashier PUBLIC
+  key + fixtures ride in on a small ext4 I/O disk; the chef verifies the
+  signature INSIDE the VM, then writes its draft; the host extracts it with
+  `debugfs` (no mount, no root) and returns it through the serving window like
+  every other backend. Selectable via `--sandbox microvm` (rootfs/kernel from
+  `$SENTINEL_MICROVM_*`); `run()` raises where it can't run; construction
+  (label, exact QEMU argv, off-platform refusal) is unit-tested. **PROVEN IN
+  CI — not construction-only.** The `microvm-isolation` workflow confirmed KVM
+  is available on hosted Linux runners (a kernel actually booted under `-accel
+  kvm`), then drives the backend through the normal loop and asserts the in-VM
+  chef's draft is **byte-identical** to the subprocess backend — the chef's own
+  Ed25519 signature gate runs in the guest. This is the VM/TEE-isolation
+  frontier taken from STUB to a genuinely-real, executable, CI-proven rung — on
+  a normal cloud runner, no special hardware. HONEST CEILING: a local/cloud VM
+  gives real isolation but NOT the TEE's two extra properties (hide-from-host +
+  hardware attestation) — those still need a TEE (SGX/SEV-SNP/Nitro), and
+  attestation here remains the MockAttestor. The seam is the same `run()`; a
+  Firecracker or confidential-VM backend slots in behind it unchanged.
 
 ## v0.13 — the door (the consumer desktop shell)
 
