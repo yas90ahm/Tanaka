@@ -293,11 +293,19 @@ class LinuxSeccompSandbox:
         # Pre-create the serving-window dir so it can be granted write and the
         # chef (which skips makedirs when out_dir exists) writes into it.
         os.makedirs(spec.out_dir, exist_ok=True)
-        read_exec = python_read_roots() + [spec.fixtures_root]
+        # READ+EXEC: the Python runtime + system libs (interpreter, .so files).
+        read_exec = python_read_roots()
+        # READ-only inputs the chef opens: the kitchen fixtures, the cashier
+        # PUBLIC key it verifies the ticket against, and the chef module's dir.
+        read_only = [
+            spec.fixtures_root,
+            os.path.dirname(os.path.abspath(spec.pubkey_path)),
+            os.path.dirname(os.path.abspath(spec.chef_main)),
+        ]
         write = [spec.out_dir, spec.workspace]
 
         def _confine():
-            apply_landlock(read_exec_roots=read_exec, read_roots=[],
+            apply_landlock(read_exec_roots=read_exec, read_roots=read_only,
                            write_roots=write)
             install_network_seccomp()
 
