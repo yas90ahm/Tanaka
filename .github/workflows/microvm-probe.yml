@@ -1,0 +1,42 @@
+name: microvm-probe
+
+# TEMPORARY feasibility probe (not a permanent job): can a GitHub-hosted Linux
+# runner actually run a KVM-accelerated virtual machine? If yes, a real
+# chef-in-a-microVM backend is provable in CI; if no, the genuinely-real
+# microVM rung needs bare metal / a Mac the operator runs, and stays a stub.
+# Each check is its own step so the API exposes the answer via step conclusions
+# (CI logs aren't readable without auth).
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  kvm-feasibility:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "probe: /dev/kvm device exists"
+        run: test -e /dev/kvm
+
+      - name: "probe: CPU exposes virtualization flags"
+        if: always()
+        run: test "$(grep -cE '(vmx|svm)' /proc/cpuinfo)" -gt 0
+
+      - name: "probe: install qemu + cpu-checker"
+        if: always()
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq qemu-system-x86 cpu-checker
+
+      - name: "probe: kvm-ok reports acceleration usable"
+        if: always()
+        run: sudo kvm-ok
+
+      - name: "probe: qemu boots a kernel UNDER kvm (decisive)"
+        if: always()
+        run: |
+          set -o pipefail
+          out=$(timeout 40 sudo qemu-system-x86_64 -accel kvm -m 256 -nographic \
+                  -no-reboot -kernel /boot/vmlinuz-"$(uname -r)" \
+                  -append "console=ttyS0 panic=-1" 2>&1 | head -80 || true)
+          echo "$out"
+          echo "$out" | grep -qiE "Linux version|Booting the kernel"
