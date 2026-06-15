@@ -17,12 +17,14 @@ unit-tested; `run()` shells out to `sandbox-exec` and refuses off-macOS.
 CONTAINMENT (rides on the receipt as containment="macsandbox"):
   - Network: DENIED (`(deny network*)`).
   - Writes: DENIED except the serving window, the ephemeral workspace, and the
-    system temp dirs — the chef cannot modify anything else.
-  - File CONTENT reads: DENIED except the Python runtime + system libraries, the
-    kitchen fixtures, the cashier public key, and the chef module. Metadata
-    (stat) stays allowed so path resolution works; only DATA is confined — so
-    the chef cannot read another tenant's or user's file contents. Mirrors the
-    Linux Landlock allow-list; DEFENSE-IN-DEPTH with the chef's owner-dir guard.
+    system temp dirs — the chef cannot modify or create anything else.
+  - Reads: handled by the chef's own owner-dir guard (which confines reads to
+    the tenant within the kitchen). HONEST ASYMMETRY vs. Linux: Landlock there
+    also OS-confines reads to an allow-list; on macOS a content-read allow-list
+    (file-read-data) proved too fragile across runner/OS versions (the dyld
+    shared cache + framework content reads broke Python startup), so this
+    backend OS-confines NETWORK + WRITES and leaves read-confinement to the
+    chef's guard. Flagged, not papered. Tightening reads is a future increment.
   - Shares the host kernel; an OS sandbox, not a VM/TEE.
 """
 
@@ -32,12 +34,6 @@ import subprocess
 import sys
 
 from sentinel_slice.chef.sandbox import SandboxResult, SandboxSpec
-
-# System locations the chef's Python needs to READ content from to run.
-_SYSTEM_READ = [
-    "/usr", "/System", "/Library", "/bin", "/sbin", "/opt",
-    "/private/var/db", "/private/etc", "/private/var/folders", "/dev",
-]
 
 
 def _existing_realpaths(paths):
@@ -50,19 +46,6 @@ def _existing_realpaths(paths):
             seen.add(rp)
             out.append(rp)
     return out
-
-
-def _read_roots(spec):
-    """Directories the chef may read CONTENT from: the Python runtime + system
-    libs, plus the kitchen fixtures, the cashier public key, and the chef
-    module. Everything else is content-read-denied."""
-    roots = list(_SYSTEM_READ)
-    roots += [sys.base_prefix, sys.prefix, sys.base_exec_prefix, sys.exec_prefix,
-              os.path.dirname(os.path.realpath(sys.executable))]
-    roots += [p for p in sys.path if p]
-    roots += [spec.fixtures_root, os.path.dirname(spec.pubkey_path),
-              os.path.dirname(spec.chef_main)]
-    return _existing_realpaths(roots)
 
 
 def _write_roots(spec):
@@ -78,17 +61,14 @@ def _subpaths(paths):
 
 def build_profile(spec: SandboxSpec) -> str:
     """The Seatbelt profile: allow the operation classes Python needs, then deny
-    network, deny writes outside the window/workspace/temp, and deny file
-    CONTENT reads outside the runtime + kitchen + keys."""
+    network and deny writes outside the window/workspace/temp."""
     return (
         "(version 1)"
         "(allow default)"
         "(deny network*)"
         "(deny file-write*)"
         '(allow file-write* {w} (literal "/dev/null") (literal "/dev/dtracehelper"))'
-        "(deny file-read-data)"
-        "(allow file-read-data {r})"
-    ).format(w=_subpaths(_write_roots(spec)), r=_subpaths(_read_roots(spec)))
+    ).format(w=_subpaths(_write_roots(spec)))
 
 
 class MacSandbox:

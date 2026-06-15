@@ -575,23 +575,25 @@ containment class actually ran.
 - **`chef/mac_sandbox.py` — BUILT, the macOS peer.** An OS microsandbox
   (`containment="macsandbox"`) via the built-in `sandbox-exec` (ships with
   macOS, no install): it applies a per-run Seatbelt/SBPL profile, then execs the
-  chef under a kernel-enforced sandbox that denies **network**, denies **writes**
-  outside the serving window + workspace + system temp, and denies file
-  **content reads** (`file-read-data`) outside the Python runtime + kitchen +
-  cashier key (metadata/stat stays allowed so path resolution works). Mirrors the
-  Linux Landlock allow-list. Mechanism honesty: unlike Windows/Linux (which raise
-  the boundary in-process via ctypes), macOS raises it through the OS launcher —
-  the containment is still kernel-enforced, only the way it's raised differs
-  (Apple deprecated the public `sandbox_init` symbol but ships+uses
-  `sandbox-exec`). `build_profile`/`build_command` are pure + asserted; `run()`
-  refuses off-macOS. Selectable via `--sandbox macsandbox`. **Proven in CI** by
-  the gated `macos-sandbox-isolation` job (`SENTINEL_TEST_MAC_SANDBOX=1`,
-  macos-latest): the profile denies a network bind, denies reads/writes outside
-  the allow-list (granted paths still work), and a real chef under it produces a
-  byte-identical draft to the subprocess backend. (System temp stays writable —
-  Python may touch it; a tighter temp policy is a possible future increment.)
-  With this, the in-process OS microsandbox is **no longer Windows-only** and
-  every platform now confines BOTH network and filesystem: Windows
+  chef under a kernel-enforced sandbox that denies **network** and denies
+  **writes** outside the serving window + workspace + system temp — the chef
+  cannot modify or create anything else. Mechanism honesty: unlike Windows/Linux
+  (which raise the boundary in-process via ctypes), macOS raises it through the
+  OS launcher — the containment is still kernel-enforced, only the way it's
+  raised differs (Apple deprecated the public `sandbox_init` symbol but
+  ships+uses `sandbox-exec`). `build_profile`/`build_command` are pure +
+  asserted; `run()` refuses off-macOS. Selectable via `--sandbox macsandbox`.
+  **Proven in CI** by the gated `macos-sandbox-isolation` job
+  (`SENTINEL_TEST_MAC_SANDBOX=1`, macos-latest): the profile denies a network
+  bind, denies writes outside the allow-list (the window still works), and a
+  real chef under it produces a byte-identical draft to the subprocess backend.
+  **HONEST ASYMMETRY vs. Linux:** Landlock there also OS-confines *reads* to an
+  allow-list; on macOS a content-read allow-list (`file-read-data`) proved too
+  fragile across runner/OS versions (the dyld shared cache + framework content
+  reads broke Python startup), so this backend OS-confines NETWORK + WRITES and
+  leaves read-confinement to the chef's own owner-dir guard. Flagged, not
+  papered; tightening macOS reads is a future increment. With this, the
+  in-process OS microsandbox is **no longer Windows-only** — Windows
   (AppContainer) / Linux (seccomp+Landlock) / macOS (Seatbelt), each proven on
   its own CI runner, each honestly an OS sandbox (not a VM/TEE).
 

@@ -130,10 +130,10 @@ jobs:
         if: always()
         env: { SENTINEL_TEST_MAC_SANDBOX: "1" }
         run: python -m pytest "sentinel_slice/tests/test_mac_sandbox.py::test_seatbelt_denies_network_operation" -q
-      - name: "test: seatbelt_confines_filesystem"
+      - name: "test: seatbelt_confines_writes"
         if: always()
         env: { SENTINEL_TEST_MAC_SANDBOX: "1" }
-        run: python -m pytest "sentinel_slice/tests/test_mac_sandbox.py::test_seatbelt_confines_filesystem" -q
+        run: python -m pytest "sentinel_slice/tests/test_mac_sandbox.py::test_seatbelt_confines_writes" -q
       - name: "test: real_chef_matches_subprocess"
         if: always()
         env: { SENTINEL_TEST_MAC_SANDBOX: "1" }
