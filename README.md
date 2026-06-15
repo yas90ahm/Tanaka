@@ -88,13 +88,14 @@ order JSON below can use this infrastructure (see *The diner protocol*).
 | Component | Status |
 |---|---|
 | Hash-chained, signed, append-only ledger + standalone verifier | **Real** |
-| Five-step cashier validation pipeline (nonce → menu → role → scope → rate) | **Real** |
+| Cashier validation pipeline (nonce → menu → role → kill-switch → scope → rate; scope rejects control chars / NUL bytes) | **Real** |
 | Signed-ticket verification inside the chef before any side effect | **Real** |
+| Console identity — Ed25519 **signed requests** verified against admin public keys (no shared-secret token transmitted or stored) | **Real.** Federating to a directory (SSO/OIDC) behind the same `KeyRegistry` seam is the remaining stub. |
+| Sandbox containment — OS-enforced on every desktop OS, **plus a real KVM virtual machine** | **Real, and CI-proven.** Windows AppContainer, Linux seccomp+Landlock, macOS Seatbelt (each proven on its own runner), and `MicroVmSandbox` — the chef in a real KVM VM with its own kernel, byte-identical to subprocess, proven in CI. The *default* path is still the subprocess **contract**; the strong backends are opt-in, and every receipt records which one actually ran. |
+| Attestation | **MOCK.** `MockAttestor` signs a code hash. Every artifact says `"mock": true`. It proves the receipt *slot*, not TEE security — the one frontier a real TEE (SGX/SEV-SNP/Nitro) still owns. |
 | Policy authoring round-trip (form output == engine input, byte-identical) | **Real** |
 | Inspector (back office): chain-validated, operator-legible day report | **Real**, but pattern *surfacing*, not anomaly *detection* — no baseline, no behavioral model. |
-| Adversarial drill: receipt-backed "resisted N/6" resistance report | **Real probes through the real pipeline**, but the probe set is fixed in code — the signed, continuously-updated curriculum of Essay 6 is a STUB. |
-| Attestation | **MOCK.** `MockAttestor` signs a code hash. Every artifact says `"mock": true`. It proves the receipt *slot*, not TEE security. |
-| Sandbox | **Subprocess contract, not a microVM guarantee.** Fresh subprocess + network-free import closure + workspace deletion demonstrate the *contract*; only Firecracker/gVisor provides the *guarantee*. |
+| Adversarial drill: receipt-backed "resisted N/6" resistance report | **Real probes through the real pipeline**, but the probe set is fixed in code — the continuously-updated curriculum is a STUB. |
 | Kitchen | **Cooperative fixtures.** The mailbox is assumed honest; no provenance or integrity signing on stored content. |
 
 `PROGRESS.md` carries the full component-by-component status with the same
@@ -111,7 +112,7 @@ python -m venv .venv
 
 pip install -e ".[dev]"           # installs cryptography + pytest + sentinel-* CLIs
 
-python -m pytest                  # 108 behavior tests
+python -m pytest                  # 271 passing (16 env-gated OS-sandbox/VM/GUI proofs skip locally)
 ```
 
 You can verify the committed demo chain **before generating anything** — the
@@ -318,11 +319,13 @@ signature; never content):
 ```
 
 A rejected order returns `"accepted": false` with the exact `reason_code`
-(`OFF_MENU`, `ROLE_NOT_PERMITTED`, `OUT_OF_SCOPE`, `REPLAY`, `RATE_LIMITED`)
-and the chained rejection receipt. A malformed order (bad JSON, missing or
-unknown keys) is refused with `MALFORMED_ORDER`, exit 2, and **no** ledger row
-— it never acquired an identity the chain could record (a production gateway
-would receipt these under a gateway-assigned identity).
+(`OFF_MENU`, `ROLE_NOT_PERMITTED`, `CAPABILITY_PAUSED`, `OUT_OF_SCOPE`,
+`REPLAY`, `RATE_LIMITED`) and the chained rejection receipt. A malformed order
+(bad JSON, missing or unknown keys) is refused with `MALFORMED_ORDER` and exit
+2, **and still chained to the ledger** under a gateway-assigned identity
+(`principal: gateway:unadmitted`) — no intake escapes the audit trail. The raw
+bytes are never stored; only that an unadmittable intake arrived and was
+refused.
 
 In-process, the same surface is `sentinel_slice.gateway.place_order_json(loop,
 text)`; the scripted reference diner lives in `sentinel_slice/diner/agent.py`.
@@ -468,8 +471,11 @@ only, self-contained (loads zero external resources):
 python -m sentinel_slice.console.server            # http://127.0.0.1:8787
 ```
 
-Open that URL, paste a dev token (`dev-author-token` or `dev-reviewer-token`),
-and you get three screens: **Capabilities** (the menu, with risk class and
+Open that URL, load your admin id + Ed25519 private key (the page signs every
+request with WebCrypto; the key never leaves the browser — only signatures are
+sent). Without `--admins`, the server generates real dev keypairs on startup
+and prints where to find them. You get three screens: **Capabilities** (the
+menu, with risk class and
 which capabilities need a second admin), **Policies** (a structured editor —
 pick capabilities, set rates, with live "industry-standard max" coaching;
 **Simulate** shows exactly what an agent could/couldn't do under the candidate
@@ -485,13 +491,17 @@ content* — like the cashier, it can reach only receipts (digests + metadata)
 and policies, so a full compromise leaks no payload. Its one power, authoring,
 is *signed, append-only, externally verifiable, and second-admin-gated*. It
 binds **loopback only**, ships a strict CSP that forbids inline scripts and
-every external origin, sends no CORS, and carries its token in a header (not a
-cookie) so cross-origin pages can't forge calls. It is the operator's Settings
+every external origin, sends no CORS, and authenticates every call with an
+**Ed25519 signature over the request** (not a bearer token, not a cookie) so a
+tampered or cross-origin request can't be forged. It is the operator's Settings
 app, run inside their trust boundary — not a hosted service. And it *replaces*
 hand-edited policy JSON, which was already an attack surface, just an invisible
-one. Identity is a **MOCK** static token table (flagged loudly); the
-separation-of-duties enforcement on top of it is real, and the seam swaps to
-SSO without touching anything else.
+one. Identity is **real**: each admin holds an Ed25519 keypair, the server holds
+only their public keys, possession of the private key is proven on every
+request, the body is integrity-bound, and stale requests are rejected — no
+shared secret is ever transmitted or stored. The separation-of-duties
+enforcement on top is unchanged. Only *federating* these keys to a directory
+(SSO/OIDC) remains a stub, behind the same `KeyRegistry` seam.
 
 Policy history is itself a signed, append-only chain — verify it standalone,
 exactly like the receipt ledger:
@@ -601,8 +611,26 @@ The chef runs behind a swappable `Sandbox` interface (`chef/sandbox.py`):
   writable, then runs the real chef and asserts a **byte-identical FULFILLED
   receipt** carrying `containment="appcontainer"`. Honest rung: this is an OS
   sandbox sharing the host kernel — **not** a hypervisor/microVM boundary and
-  **not** a TEE. The next rung (gVisor / Firecracker / Virtualization.framework)
-  is a different `run()` backend and a different receipt label.
+  **not** a TEE — but it now has real in-process peers on Linux and macOS, and a
+  real VM rung above it (below).
+
+- `LinuxSeccompSandbox` (Linux, **zero install**, `chef/linux_sandbox.py`) — the
+  in-process Linux peer of AppContainer. A `preexec_fn` installs
+  `PR_SET_NO_NEW_PRIVS` + a **seccomp** BPF filter (network syscalls → `EACCES`)
+  **and** a **Landlock** ruleset (filesystem allow-list: the Python runtime +
+  the kitchen read-only, the serving window read-write; everything else —
+  `/home`, `/root`, other tenants — denied by the kernel). Privilege-free (no
+  Docker, no daemon, no user namespace), all stdlib `ctypes`.
+  `containment="seccomp+landlock"`. **Proven in CI**
+  (`sandbox-isolation` → `linux-sandbox-isolation`): the kernel denies socket
+  creation, Landlock denies out-of-list reads/writes, and a real chef under both
+  is byte-identical to subprocess.
+- `MacSandbox` (macOS, **zero install**, `chef/mac_sandbox.py`) — the macOS peer
+  via the built-in `sandbox-exec`: a Seatbelt profile denies network and denies
+  writes outside the serving window/workspace. `containment="macsandbox"`,
+  **proven in CI** on a macOS runner. Honest asymmetry: it OS-confines network +
+  writes; *read* confinement is left to the chef's own owner-dir guard, because a
+  macOS content-read allow-list proved too fragile across OS versions.
 
 - `AppleVmSandbox` (macOS, **zero install**) — runs the chef via Apple's
   `container` tool (WWDC 2025), which gives each container its **own
@@ -620,23 +648,35 @@ The chef runs behind a swappable `Sandbox` interface (`chef/sandbox.py`):
   `--network none`, this backend does not fake one (the chef's network-free
   import closure remains the mechanism).
 
-> **In-app microVM, not an integration?** The hypervisor is an OS primitive we
-> can command in-process (a ctypes probe drove the Windows Hypervisor Platform
-> directly — no Docker), exactly like AppContainer. The gap vs AppContainer is
-> that a VM brings no kernel/filesystem of its own: it needs a guest kernel + a
-> rootfs + a VMM (boot loader + virtio emulation — what Firecracker *is*). So
-> the genuine in-app microVM is real on macOS (configure Virtualization.framework)
-> and Linux (bundle Firecracker as our own engine), but on native Windows it
-> would mean hand-writing a VMM. See PROGRESS.md "Design note — can the microVM
-> be IN the app" for the full assessment; AppleVmSandbox is the seam's first,
-> construction-tested instance.
+- `MicroVmSandbox` (Linux, `chef/microvm_sandbox.py`) — **the rung ABOVE the OS
+  sandboxes: a real hardware-accelerated virtual machine, built and CI-proven,
+  not a stub.** The chef runs inside a per-order **KVM VM** via QEMU — its *own*
+  kernel, so a kernel exploit in a hostile chef hits the throwaway guest, not the
+  host. A prebuilt rootfs (Python + cryptography + the package + a busybox init,
+  `microvm/Dockerfile.rootfs`) boots copy-on-write (`snapshot=on`, ephemeral);
+  the signed ticket + cashier public key + fixtures ride in on a small ext4 I/O
+  disk; the chef **verifies the signature *inside the VM***, writes its draft,
+  and the host extracts it via `debugfs` (no mount, no root).
+  `containment="microvm-kvm"`. **Proven in CI** (`microvm-isolation`): KVM is
+  available on the hosted runner (a kernel boots under `-accel kvm`), and the
+  backend — driven through the normal loop — produces a draft **byte-identical**
+  to subprocess. No special hardware: a normal cloud Linux runner.
+
+> **The honest VM/TEE ceiling.** A VM (local or cloud) gives *real isolation* —
+> the chef gets its own kernel — but **not** the two extra things only a TEE
+> adds: hiding from the host, and a hardware-signed attestation of what's
+> running. Those still need a real TEE (Intel SGX/TDX, AMD SEV-SNP, AWS Nitro),
+> and attestation here remains the `MockAttestor`. The seam is identical — a
+> Firecracker or confidential-VM backend slots in behind the same `run()`
+> unchanged. On your own trusted machine you don't *need* the TEE's two tricks;
+> a local microVM (this backend) is the right tool — a TEE only earns its keep
+> when you run on hardware you don't own.
 
 **Every receipt records which containment class actually ran** the order
-(`containment`: `subprocess-contract` / `appcontainer` / `container+runsc` /
-`applevm` …),
-hash-bound like every other field — so the chain never claims a guarantee the
-execution didn't have. Forging a stronger claim in a stored row breaks
-verification at that seq.
+(`containment`: `subprocess-contract` / `appcontainer` / `seccomp+landlock` /
+`macsandbox` / `container+runsc` / `microvm-kvm` / `applevm` …), hash-bound like
+every other field — so the chain never claims a guarantee the execution didn't
+have. Forging a stronger claim in a stored row breaks verification at that seq.
 
 To turn it on (Windows): `sentinel-init --sandbox` (or `sentinel-sandbox-setup
 setup`) grants the package SID read+execute on the Python runtime once and
@@ -650,7 +690,7 @@ grants. An installer runs the setup so your dad never sees a flag.
 |---|---|---|
 | Diner | `diner/agent.py`, `gateway.py` | Scripted reference agent (honest + injected modes); model-agnostic JSON counter |
 | Menu | `menu/catalog.py` + `capabilities/*.json` | Declared, finite capability catalog |
-| Cashier | `cashier/engine.py`, `policy.py`, `store.py` | Five-step validation, ticket minting, rejection receipts; structurally kitchen-blind |
+| Cashier | `cashier/engine.py`, `policy.py`, `store.py` | Six-step validation (nonce/menu/role/kill-switch/scope/rate), ticket minting, rejection receipts; structurally kitchen-blind |
 | Kitchen | `kitchen/fixtures/` | System of record (cooperative fixtures, incl. the poisoned email) |
 | Chef + Window | `chef/chef_main.py`, `chef/runner.py`, `window/serving.py` | Ephemeral execution of the signed ticket; per-order serving window |
 | Receipt | `ledger/receipts.py`, `verify_ledger.py` | Append-only signed hash chain; standalone verification |
@@ -662,9 +702,11 @@ grants. An installer runs the setup so your dad never sees a flag.
 
 ## Acceptance tests
 
-All 10 SPEC acceptance tests pass (`tests/test_at01_*` … `test_at10_*`),
-plus unit, hardening-regression, gateway, inspector, drill, and console tests
-— 108 total. Highlights:
+All 10 SPEC acceptance tests pass (`tests/test_at01_*` … `test_at10_*`), plus
+unit, hardening-regression, gateway, inspector, drill, console, signed-identity,
+and sandbox tests — **271 passing**, with 16 env-gated proofs (the real
+OS-sandbox / KVM-microVM / GUI runs) that execute on their target platform in
+CI. Highlights:
 
 - **AT01** honest order → exact deterministic draft in the window; receipt
   carries the digest and **no substring** of the draft appears anywhere in the
@@ -677,16 +719,22 @@ plus unit, hardening-regression, gateway, inspector, drill, and console tests
 - **AT09** changing the rate limit in the form-emitted JSON changes
   enforcement; form output and engine input are byte-identical.
 
-## Production swap map (designed seams — do not read as built)
+## Production swap map (designed seams)
 
-Each mock sits behind a contract whose replacement changes no type signature:
-chef subprocess → Firecracker/gVisor microVM; `MockAttestor` → TEE quote
-verification; fixture mailbox → provenance-signed store; in-process gateway →
-authenticated FastAPI surface; CLI policy form → the Tanaka operator console;
-single capability → operator-curated catalog. The thesis behind the design
-lives in the agent-infrastructure essay series (trust paradox → agent OS →
-takeout model → operator-as-buyer → threat surface → continuous curriculum →
-institutional layer).
+Each mock sits behind a contract whose replacement changes no type signature —
+and several have since been carried **across** that seam to real
+implementations: the chef now runs in real OS sandboxes (AppContainer /
+seccomp+Landlock / Seatbelt) **and a real KVM microVM**, all CI-proven; the CLI
+policy form became the operator console; the single capability became an
+operator-curated catalog; console identity became real Ed25519 signed requests.
+What remains genuinely behind a seam, **not built**: `MockAttestor` → a TEE
+quote (the one frontier that needs real silicon — hide-from-host + hardware
+attestation); the fixture mailbox → a provenance-signed store; the in-process
+gateway → an authenticated network (FastAPI) surface; SSO/OIDC federation of the
+console's admin keys. The thesis behind the design lives in the
+agent-infrastructure essay series (trust paradox → agent OS → takeout model →
+operator-as-buyer → threat surface → continuous curriculum → institutional
+layer).
 
 ## License
 
