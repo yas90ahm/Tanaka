@@ -234,3 +234,36 @@ def test_render_text_is_operator_legible(tmp_path):
         "capabilities: cap.email.draft_reply.v1, forward_inbox" in lines
     )
     assert "FINDINGS" in lines
+
+
+def test_malformed_intake_surfaces_as_named_finding(tmp_path):
+    """A gateway that receipts malformed intake must show up in the back office
+    as the MALFORMED_INTAKE finding (a known rule), NOT the generic
+    UNRECOGNIZED_REASON catch-all."""
+    from sentinel_slice.gateway import place_order_json
+
+    loop, _pub = _build_loop(tmp_path)
+    place_order_json(loop, "not an order {{{")          # seq 1 MALFORMED_ORDER
+    place_order_json(loop, "[1,2,3]")                    # seq 2 MALFORMED_ORDER
+
+    report = build_report(read_rows(str(tmp_path / "ledger.db")))
+    assert report["chain_valid"] is True
+    assert report["rejected"] == 2
+    assert report["by_reason"] == {"MALFORMED_ORDER": 2}
+    # Recorded under the gateway identity, never a real principal; the
+    # "capability" is the literal "(unparsed)" placeholder, not a real menu id.
+    assert report["by_principal"] == {
+        "gateway:unadmitted": {
+            "orders": 2,
+            "fulfilled": 0,
+            "rejected": 2,
+            "capabilities": ["(unparsed)"],
+        }
+    }
+    codes = {f["code"]: f for f in report["findings"]}
+    assert "MALFORMED_INTAKE" in codes
+    assert "UNRECOGNIZED_REASON" not in codes
+    finding = codes["MALFORMED_INTAKE"]
+    assert finding["severity"] == "medium"
+    assert finding["receipts"] == [1, 2]
+    assert finding["message"] == "2 " + REASON_RULES["MALFORMED_ORDER"][2]

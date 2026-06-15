@@ -74,6 +74,74 @@ def test_cashier_rejects_traversal_thread_id(tmp_path):
     assert ok.ticket.scoped_args == {"thread_id": "user.kenji/t-001"}
 
 
+def test_cashier_rejects_control_char_thread_id(tmp_path):
+    """Red-team #1: the scope gate must reject control characters (NUL, newline,
+    tab, DEL) in the resource id — never part of a legitimate name, and a NUL is
+    a path-truncation primitive. No ticket may be minted."""
+    priv = Ed25519PrivateKey.generate()
+    ledger = Ledger(str(tmp_path / "l.db"), priv)
+    menu, pset, store = load_catalog(), load_policy_set(), CashierStore()
+
+    # Control char in the LOCAL segment (owner == principal, so it would
+    # otherwise be accepted before this fix).
+    for i, tid in enumerate([
+        "user.kenji/t\x00x",   # NUL
+        "user.kenji/t\nx",     # newline
+        "user.kenji/t\tx",     # tab
+        "user.kenji/t\x7fx",   # DEL
+        "user.kenji/\x01",     # SOH
+    ]):
+        out = process_order(
+            _order("user.kenji", tid, f"c{i}"),
+            menu=menu, policy_set=pset, store=store, ledger=ledger, private_key=priv,
+        )
+        assert out.accepted is False, repr(tid)
+        assert out.reason_code == "OUT_OF_SCOPE", repr(tid)
+        assert out.ticket is None, repr(tid)
+
+    # Control char in the OWNER segment (with a matching principal) is rejected
+    # too — the check spans the whole resource, not just the local part.
+    out = process_order(
+        _order("user.k\x00enji", "user.k\x00enji/t-001", "cowner"),
+        menu=menu, policy_set=pset, store=store, ledger=ledger, private_key=priv,
+    )
+    assert out.accepted is False
+    assert out.reason_code == "OUT_OF_SCOPE"
+
+
+def test_chef_rejects_control_char_resource(tmp_path):
+    """The chef's independent guard rejects a control-char resource even from a
+    VALIDLY-SIGNED ticket — it must not rely on open() to raise on a NUL byte."""
+    root = tmp_path / "mailbox"
+    (root / "user.kenji").mkdir(parents=True)
+    (root / "user.kenji" / "t-001.txt").write_text("Subject: hi\n\nbody\n", encoding="utf-8")
+
+    priv = Ed25519PrivateKey.generate()
+    pub = tmp_path / "pub.pem"
+    pub.write_bytes(priv.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    ))
+
+    scoped_args = {"thread_id": "user.kenji/t\x00x"}
+    signable = {
+        "ticket_id": "tkt-c", "order_id": "ord-c",
+        "capability_id": "cap.email.draft_reply.v1", "behavior": "draft_reply",
+        "behavior_config": {}, "scoped_args": scoped_args,
+        "issued_ts": "2026-06-10T00:00:00+00:00",
+    }
+    sig = priv.sign(json.dumps(signable, **CANONICAL).encode("utf-8"))
+    wire = dict(signable, cashier_sig=base64.b64encode(sig).decode("ascii"))
+
+    out_dir = tmp_path / "out"
+    proc = subprocess.run(
+        [sys.executable, str(CHEF_MAIN), str(pub), str(root), str(out_dir)],
+        input=json.dumps(wire), capture_output=True, text=True,
+    )
+    assert proc.returncode == 4, (proc.stdout, proc.stderr)
+    assert not (out_dir / "output.txt").exists()
+
+
 def test_chef_confines_read_to_owner_dir(tmp_path):
     # Two tenants under one fixtures root; victim holds a secret.
     root = tmp_path / "mailbox"

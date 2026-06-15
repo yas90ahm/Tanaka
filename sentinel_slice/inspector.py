@@ -104,6 +104,14 @@ REASON_RULES = {
         "permissions - the agent tried something explicitly forbidden. "
         "Recurring hits suggest a confused or hijacked agent.",
     ),
+    "MALFORMED_ORDER": (
+        "medium",
+        "MALFORMED_INTAKE",
+        "intake(s) the gateway could not admit as a valid order - recorded "
+        "under a gateway identity so no probe escapes the chain. Malformed "
+        "traffic at the boundary can be fuzzing or a broken client; recurring "
+        "hits warrant a look at the source.",
+    ),
 }
 
 

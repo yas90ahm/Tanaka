@@ -28,21 +28,32 @@ JSON so the diner can be any external agent process:
 
 One order on stdin, one outcome JSON on stdout. Exit 0 for any GOVERNED
 outcome (acceptance AND rejection both produce chained receipts — a rejection
-is not an error); exit 2 only for a malformed order that never acquired an
-identity the chain could record.
+is not an error); exit 2 for a malformed order (still distinguishable at the
+CLI), which is ALSO recorded.
 
-KNOWN LIMIT (honest disclosure): a malformed order is refused WITHOUT a ledger
-receipt — there is no trustworthy order_id to chain. A production gateway
-would receipt malformed intake under a gateway-assigned identity.
+NO SILENT INTAKE (the audit thesis): a malformed order has no trustworthy
+order_id, so it is receipted under a GATEWAY-ASSIGNED identity
+(principal "gateway:unadmitted") with reason_code MALFORMED_ORDER. The raw
+intake is never stored — only the fact that an unadmittable intake arrived,
+when, and that the gateway refused it. A probe that hammers the counter with
+garbage therefore cannot slip past the chain without a trace.
 """
 
 import argparse
 import base64
 import json
 import sys
+import uuid
+from datetime import datetime, timezone
 
 from sentinel_slice.spine.hashing import receipt_content_dict
 from sentinel_slice.spine.types import Order, Receipt
+
+# The identity the gateway records for intake it could not admit as an order.
+# Deliberately not a real principal — it names the boundary, not a user, so the
+# inspector's per-principal rollup shows malformed traffic for exactly what it
+# is: refused-at-the-counter, never authenticated to anyone.
+_UNADMITTED_PRINCIPAL = "gateway:unadmitted"
 
 
 # The exact key set of the diner protocol. A strict gateway rejects unknown
@@ -149,15 +160,49 @@ def outcome_to_dict(loop, order: Order, outcome) -> dict:
     }
 
 
-def place_order_json(loop, text: str | bytes) -> dict:
+def _append_malformed_receipt(loop, now) -> Receipt:
+    """Record an unadmittable intake as a chained REJECTED receipt under the
+    gateway-assigned identity. ticket_id / result_digest / attestation are all
+    None (no order was minted, no chef ran, no content exists) so the chain
+    still verifies. The raw intake bytes are NEVER stored — only that an
+    unadmittable intake arrived and was refused (the audit thesis)."""
+    return loop.ledger.append(
+        receipt_id="rcpt-" + uuid.uuid4().hex,
+        order_id="gw-unadmitted-" + uuid.uuid4().hex,
+        ticket_id=None,
+        status="REJECTED",
+        reason_code="MALFORMED_ORDER",
+        result_digest=None,
+        attestation=None,
+        order_meta={
+            "principal": _UNADMITTED_PRINCIPAL,
+            "role": "(none)",
+            "capability_id": "(unparsed)",
+            "ts": datetime.fromtimestamp(now(), tz=timezone.utc).isoformat(),
+        },
+    )
+
+
+def place_order_json(loop, text: str | bytes, *, now=None) -> dict:
     """The whole counter in one call: order JSON in, outcome dict out.
 
     A malformed order returns {"accepted": false, "error": "MALFORMED_ORDER",
-    "detail": ...} and appends NOTHING to the ledger (see module docstring)."""
+    "detail": ..., "receipt_id": ...} AND appends one chained REJECTED receipt
+    (reason MALFORMED_ORDER) so no intake escapes the audit chain. `now` is an
+    injectable clock (defaults to wall time) for deterministic receipts."""
+    if now is None:
+        import time
+        now = time.time
     try:
         order = parse_order(text)
     except MalformedOrder as exc:
-        return {"accepted": False, "error": "MALFORMED_ORDER", "detail": str(exc)}
+        receipt = _append_malformed_receipt(loop, now)
+        return {
+            "accepted": False,
+            "error": "MALFORMED_ORDER",
+            "detail": str(exc),
+            "receipt_id": receipt.receipt_id,
+        }
     outcome = loop.place(order)
     return outcome_to_dict(loop, order, outcome)
 

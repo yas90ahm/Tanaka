@@ -36,6 +36,17 @@ from sentinel_slice.spine.types import Order
 _DEFAULT_PROTOCOL_VERSION = "2025-06-18"
 
 
+def _server_version() -> str:
+    """The version this server advertises in `initialize`. Single source of
+    truth: the in-source __version__, which always matches the code actually
+    running (installed distribution metadata can lag behind in an editable
+    checkout). This replaces the old hard-coded "0.11" that drifted from
+    pyproject."""
+    from sentinel_slice import __version__
+
+    return __version__
+
+
 def _tool_name(capability_id: str) -> str:
     """MCP tool names are restricted; capability ids contain dots. Map
     deterministically to a safe name (and back via the live menu)."""
@@ -51,12 +62,14 @@ class McpGateway:
 
     def __init__(self, loop, *, principal: str, role: str,
                  server_name: str = "sentinel-loop",
-                 version: str = "0.11", consumer=None) -> None:
+                 version: str | None = None, consumer=None) -> None:
         self._loop = loop
         self._principal = principal
         self._role = role
         self._server_name = server_name
-        self._version = version
+        # Default to the package's single version of record (see
+        # _server_version); an explicit override still wins for tests.
+        self._version = version if version is not None else _server_version()
         # Optional ConsumerLoop over the SAME SentinelLoop: when present,
         # every call additionally passes the personal-permission gate
         # (Allow / Ask -> ON-DEVICE dialog / Block). This is the only viable

@@ -155,6 +155,12 @@ def main(argv) -> int:
     if "/" in local or "\\" in local or local in (".", ".."):
         print("path traversal rejected", file=sys.stderr)
         return 4
+    # Reject control characters (NUL, newline, ...) independently of the cashier:
+    # the chef is the standalone last line, so it must not depend on open() to
+    # raise on a path-truncating NUL byte.
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7f for ch in resource):
+        print("path traversal rejected", file=sys.stderr)
+        return 4
 
     fixtures_root = os.path.realpath(fixtures_root_arg)
     owner_dir = os.path.realpath(os.path.join(fixtures_root, owner))

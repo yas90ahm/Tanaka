@@ -95,10 +95,19 @@ now 62 passing.
   model, any language, holding zero credentials — can drive the slice.
   **FLAGS:** this is the SAME in-process trust boundary the scripted diner
   uses, exposed as JSON — it is NOT a network boundary and provides NO
-  authentication (FastAPI comes later, per ARCHITECTURE). A malformed order is
-  refused WITHOUT a ledger receipt (no trustworthy order identity to chain); a
-  production gateway would receipt malformed intake under a gateway-assigned
-  identity.
+  authentication (FastAPI comes later, per ARCHITECTURE).
+  - **NO SILENT INTAKE (closed the prior known limit).** A malformed order is
+    now refused AND recorded: `place_order_json` appends one chained
+    `REJECTED` / `MALFORMED_ORDER` receipt under a gateway-assigned identity
+    (`principal "gateway:unadmitted"`, capability `"(unparsed)"`). The raw
+    intake bytes are NEVER stored — only that an unadmittable intake arrived,
+    when, and that it was refused — so the privacy invariant holds and a probe
+    that floods the counter with garbage cannot slip past the chain untraced.
+    The CLI still exits 2 for malformed input (distinguishable) and returns the
+    `receipt_id`. The inspector surfaces these as the `MALFORMED_INTAKE`
+    finding. STILL OUT OF SCOPE: the MCP gateway's own pre-order intake errors
+    (`unknown tool`, non-object arguments) are returned to the caller but not
+    yet receipted — a parallel residual, flagged not built.
 - **`keygen.py` hardened.** Refuses to overwrite an existing keypair without
   `--force` (regenerating breaks verification of every ledger signed by the old
   key — including the committed `ledger.db`); paths are module-relative, so it
@@ -405,7 +414,10 @@ governed and receipted — adding the two things MCP itself lacks.
   notifications. Each enabled capability becomes a tool; a `tools/call` is
   turned into a Sentinel Order, run through the cashier (scope/role/rate/
   replay) and the ephemeral chef, and recorded. Configurable principal/role
-  (the identity the agent acts as). Entry point `sentinel-mcp`.
+  (the identity the agent acts as). Entry point `sentinel-mcp`. The version it
+  advertises in `initialize` now resolves from `sentinel_slice.__version__`
+  (the single in-source version of record) instead of a hard-coded default
+  that had drifted stale (`0.11` vs the package's `0.15.0`).
 - **What it adds over MCP:** (1) PER-CALL governance — a call is checked on its
   actual arguments, not just "is this tool allowed" (out-of-scope / ungranted /
   rate-limited calls are refused; tested); (2) VERIFIABLE RECEIPTS — every
@@ -721,6 +733,15 @@ engine; the layers below it remain as flagged.
 - `verify_ledger.py` — **BUILT.** Standalone (zero `sentinel_slice` imports);
   recomputes canonical JSON + genesis + content hash locally; walks the chain;
   first broken link → `FAIL seq=N` exit 1, else `OK verified=N` exit 0.
+- **KNOWN GAP (red-team, MEDIUM) — tail truncation is undetectable.** The chain
+  proves no row was altered and no EARLIER row removed, but deleting the
+  most-recent receipt(s) leaves a valid prefix the verifier still accepts
+  (`OK verified=N-1`, exit 0). An attacker with DB write access could silently
+  drop the newest rows — e.g. erase a "money-artifact" rejection. The head is
+  not bound to any external anchor or expected count. This is the concrete
+  consequence of the **external chain anchoring STUB**; closing it is a design
+  decision (co-sign head+count externally, or have the inspector assert a
+  monotonic expected count), deliberately NOT built here.
 
 ### Menu + Cashier (Phase 3) — BUILT
 - `menu/catalog.py` — **BUILT.** Read-only `Capability` registry from
@@ -733,6 +754,10 @@ engine; the layers below it remain as flagged.
   (nonce→on-menu→role→scope→rate) with exact reason codes; mints+signs tickets;
   appends a chained REJECTED receipt on every rejection. Kitchen-blind (no
   import path to `kitchen/`, asserted by an import-closure test).
+  - **Hardened (red-team #1):** the scope gate now rejects control characters
+    (NUL/newline/tab/DEL) anywhere in the resource id — previously accepted and
+    only stopped downstream by the chef's runtime. The chef's independent path
+    guard rejects them too (defense-in-depth, for a directly-signed ticket).
 
 ### Chef + Window + Attestor (Phase 4) — BUILT (sandbox is a CONTRACT — see flags)
 - `chef/chef_main.py` — **BUILT.** Standalone subprocess entrypoint; verifies

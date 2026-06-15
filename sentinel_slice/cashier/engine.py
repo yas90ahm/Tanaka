@@ -124,6 +124,12 @@ def evaluate_order(
     resource = order.args.get(scoped_key) if isinstance(order.args, dict) else None
     if not isinstance(resource, str) or "/" not in resource:
         return Decision(accepted=False, reason_code="OUT_OF_SCOPE", scoped_args=None)
+    # Reject control characters anywhere in the resource id. They are never part
+    # of a legitimate "<owner>/<local>" name, and a NUL byte is a path-truncation
+    # primitive: rejecting it HERE, at the trust anchor, means it can never reach
+    # a filesystem path op — rather than relying on the chef's runtime to raise.
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7f for ch in resource):
+        return Decision(accepted=False, reason_code="OUT_OF_SCOPE", scoped_args=None)
     owner, local = resource.split("/", 1)
     local_unsafe = (
         local == "" or "/" in local or "\\" in local or local in (".", "..")

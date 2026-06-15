@@ -10,6 +10,7 @@ refuses to overwrite an existing keypair unless invoked with --force, and a
 forced regeneration means any previously signed ledger db must be retired.
 """
 
+import argparse
 import os
 import sys
 
@@ -60,20 +61,44 @@ def generate_keypair(keys_dir) -> tuple[str, str]:
 
 
 def main(argv=None) -> int:
-    argv = sys.argv[1:] if argv is None else argv
-    force = "--force" in argv
+    parser = argparse.ArgumentParser(
+        prog="sentinel-keygen",
+        description="Generate the cashier/ledger Ed25519 keypair (PEM on disk).",
+    )
+    parser.add_argument(
+        "--keys",
+        default=None,
+        metavar="DIR",
+        help="directory to write the keypair into (default: the package's "
+        "committed sentinel_slice/keys). The existence/overwrite checks and "
+        "the writes all target THIS directory.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="regenerate even if a private key already exists in the target "
+        "dir (retires every ledger the old key signed).",
+    )
+    args = parser.parse_args(argv)
 
-    private_exists = os.path.isfile(PRIVATE_KEY_PATH)
-    public_exists = os.path.isfile(PUBLIC_KEY_PATH)
+    # Resolve every path from the chosen directory — NOT the module constant —
+    # so the checks and the writes can never disagree about which keypair this
+    # invocation is touching.
+    keys_dir = os.path.abspath(args.keys) if args.keys else KEYS_DIR
+    private_path = os.path.join(keys_dir, "cashier_ed25519_private.pem")
+    public_path = os.path.join(keys_dir, "cashier_ed25519_public.pem")
+
+    private_exists = os.path.isfile(private_path)
+    public_exists = os.path.isfile(public_path)
 
     # The PRIVATE key is the only irreplaceable artifact: regenerating it
     # retires every ledger it ever signed. That — and only that — requires
     # --force. (A committed PUBLIC key with no private key is the normal
     # fresh-clone/demo state; replacing it is safe and is exactly what a new
     # operator must do, so we don't make them fight the tool for it.)
-    if private_exists and not force:
+    if private_exists and not args.force:
         print("refusing to overwrite existing keypair:")
-        for p in (PRIVATE_KEY_PATH, PUBLIC_KEY_PATH):
+        for p in (private_path, public_path):
             if os.path.isfile(p):
                 print("  " + p)
         print(
@@ -83,11 +108,11 @@ def main(argv=None) -> int:
         )
         return 1
 
-    if private_exists and force:
+    if private_exists and args.force:
         print(
-            "WARNING: overwriting the cashier keypair. Previously signed "
+            "WARNING: overwriting the cashier keypair at {}. Previously signed "
             "ledgers (including a committed ledger.db) will no longer verify "
-            "against the new public key."
+            "against the new public key.".format(keys_dir)
         )
     elif public_exists:
         # Fresh clone: the repo shipped a demo public key but no private key.
@@ -98,9 +123,9 @@ def main(argv=None) -> int:
             "history); start a fresh ledger for your own runs."
         )
 
-    private_path, public_path = generate_keypair(KEYS_DIR)
-    print(private_path)
-    print(public_path)
+    written_private, written_public = generate_keypair(keys_dir)
+    print(written_private)
+    print(written_public)
     return 0
 
 

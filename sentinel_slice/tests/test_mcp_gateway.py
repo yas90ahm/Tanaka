@@ -66,11 +66,17 @@ def _req(method, params=None, req_id=1):
 
 
 def test_initialize_handshake(tmp_path):
+    import sentinel_slice
+
     gw, _ = _gateway(tmp_path)
     resp = gw.handle(_req("initialize", {"protocolVersion": "2025-06-18"}))
     assert resp["id"] == 1
     assert resp["result"]["protocolVersion"] == "2025-06-18"
     assert resp["result"]["serverInfo"]["name"] == "sentinel-loop"
+    # The advertised version tracks the package's single source of truth, not
+    # the old hard-coded "0.11" that drifted from pyproject.
+    assert resp["result"]["serverInfo"]["version"] == sentinel_slice.__version__
+    assert resp["result"]["serverInfo"]["version"] != "0.11"
     assert "tools" in resp["result"]["capabilities"]
 
 

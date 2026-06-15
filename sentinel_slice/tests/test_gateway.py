@@ -9,7 +9,7 @@ exact reason codes, ledger row counts), never shapes:
 - an off-menu order JSON comes back as the EXACT rejection outcome dict
   (compared by full dict equality against the appended receipt);
 - every malformed-order variant is refused with MALFORMED_ORDER and appends
-  ZERO ledger rows;
+  exactly ONE chained receipt under the gateway identity (no silent intake);
 - the stdin/stdout CLI (`python -m sentinel_slice.gateway`) fulfills an
   honest order end-to-end as a subprocess — proving an external agent process
   (any model, any language) can drive the slice holding no credentials —
@@ -21,6 +21,7 @@ import hashlib
 import json
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
@@ -167,8 +168,14 @@ def test_gateway_off_menu_order_rejected_exact_dict(tmp_path):
     assert rows[-1].ticket_id is None
 
 
-def test_gateway_malformed_orders_refused_without_receipt(tmp_path):
-    loop, _pub = _build_loop(tmp_path)
+def test_gateway_malformed_orders_refused_and_receipted(tmp_path):
+    """No silent intake: every malformed variant is refused AND leaves one
+    chained REJECTED/MALFORMED_ORDER receipt under the gateway identity. The
+    raw intake is never stored; the resulting chain still verifies standalone."""
+    loop, pub = _build_loop(tmp_path)
+    # Injected clock -> deterministic order_meta ts for exact-equality asserts.
+    clock = lambda: 1700000000.0
+    expected_ts = datetime.fromtimestamp(1700000000.0, tz=timezone.utc).isoformat()
 
     cases = [
         ("not json at all {{{", "unparseable JSON"),
@@ -185,14 +192,38 @@ def test_gateway_malformed_orders_refused_without_receipt(tmp_path):
         (_order_json(args="user.kenji/t-001"), "args must be an object"),
     ]
     for text, detail in cases:
-        assert place_order_json(loop, text) == {
-            "accepted": False,
-            "error": "MALFORMED_ORDER",
-            "detail": detail,
+        result = place_order_json(loop, text, now=clock)
+        # Caller-facing contract: refused, the exact parse detail, AND told the
+        # receipt id under which the refusal was recorded.
+        assert result["accepted"] is False
+        assert result["error"] == "MALFORMED_ORDER"
+        assert result["detail"] == detail
+        assert result["receipt_id"].startswith("rcpt-")
+
+    # One receipt per malformed intake — nothing was silently dropped.
+    rows = loop.read_receipts()
+    assert len(rows) == len(cases)
+    for r in rows:
+        assert r.status == "REJECTED"
+        assert r.reason_code == "MALFORMED_ORDER"
+        assert r.ticket_id is None
+        assert r.result_digest is None       # no chef ran
+        assert r.attestation is None         # no execution to attest
+        # Gateway-assigned identity, never a real principal; no raw intake.
+        assert r.order_meta == {
+            "principal": "gateway:unadmitted",
+            "role": "(none)",
+            "capability_id": "(unparsed)",
+            "ts": expected_ts,
         }
 
-    # NOTHING was admitted: zero rows appended for the whole malformed batch.
-    assert loop.read_receipts() == []
+    # The malformed-intake chain verifies with only ledger.db + the public key.
+    vproc = subprocess.run(
+        [sys.executable, str(VERIFIER), str(tmp_path / "ledger.db"), str(pub)],
+        capture_output=True, text=True, cwd=str(REPO_ROOT),
+    )
+    assert vproc.returncode == 0, (vproc.stdout, vproc.stderr)
+    assert vproc.stdout.strip() == "OK verified={}".format(len(cases))
 
 
 def test_gateway_cli_external_agent_process(tmp_path):
@@ -243,9 +274,9 @@ def test_gateway_cli_external_agent_process(tmp_path):
     assert vproc.stdout.strip() == "OK verified=1"
 
 
-def test_gateway_cli_malformed_order_exits_2(tmp_path):
+def test_gateway_cli_malformed_order_exits_2_and_records_receipt(tmp_path):
     keys_dir = tmp_path / "keys"
-    generate_keypair(str(keys_dir))
+    _priv_path, pub_path = generate_keypair(str(keys_dir))
     db = tmp_path / "ledger.db"
 
     proc = subprocess.run(
@@ -262,9 +293,24 @@ def test_gateway_cli_malformed_order_exits_2(tmp_path):
         text=True,
         cwd=str(REPO_ROOT),
     )
+    # Malformed intake stays distinguishable at the CLI (exit 2) ...
     assert proc.returncode == 2
-    assert json.loads(proc.stdout) == {
-        "accepted": False,
-        "error": "MALFORMED_ORDER",
-        "detail": "unparseable JSON",
-    }
+    out = json.loads(proc.stdout)
+    assert out["accepted"] is False
+    assert out["error"] == "MALFORMED_ORDER"
+    assert out["detail"] == "unparseable JSON"
+    assert out["receipt_id"].startswith("rcpt-")
+
+    # ... but it is now ON the chain: one MALFORMED_ORDER row that verifies.
+    ledger = Ledger(str(db), Ed25519PrivateKey.generate())
+    rows = ledger.read_all()
+    assert len(rows) == 1
+    assert rows[0].reason_code == "MALFORMED_ORDER"
+    assert rows[0].order_meta["principal"] == "gateway:unadmitted"
+
+    vproc = subprocess.run(
+        [sys.executable, str(VERIFIER), str(db), str(pub_path)],
+        capture_output=True, text=True, cwd=str(REPO_ROOT),
+    )
+    assert vproc.returncode == 0, (vproc.stdout, vproc.stderr)
+    assert vproc.stdout.strip() == "OK verified=1"
