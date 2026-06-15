@@ -25,8 +25,8 @@ _LINUX = sys.platform.startswith("linux")
 _GATED = os.environ.get("SENTINEL_TEST_LINUX_SANDBOX") == "1"
 
 
-def test_containment_label_is_seccomp():
-    assert LinuxSeccompSandbox().containment_class == "seccomp"
+def test_containment_label_is_seccomp_landlock():
+    assert LinuxSeccompSandbox().containment_class == "seccomp+landlock"
 
 
 @pytest.mark.skipif(_LINUX, reason="off-Linux degradation check")
@@ -75,6 +75,50 @@ def test_seccomp_denies_socket_creation():
 
 @pytest.mark.skipif(not (_LINUX and _GATED),
                     reason="real isolation: Linux + SENTINEL_TEST_LINUX_SANDBOX=1")
+def test_landlock_denies_reads_and_writes_outside_allowlist(tmp_path):
+    from sentinel_slice.chef.linux_sandbox import apply_landlock, python_read_roots
+
+    allowed = tmp_path / "allowed"
+    allowed.mkdir()
+    (allowed / "ok.txt").write_text("INSIDE", encoding="utf-8")
+    secret = tmp_path / "secret.txt"          # NOT under any granted root
+    secret.write_text("TOPSECRET", encoding="utf-8")
+    outdir = tmp_path / "out"
+    outdir.mkdir()
+
+    prog = (
+        "print('INSIDE_READ', open(r'{ok}').read())\n"
+        "try:\n"
+        "    open(r'{secret}').read(); print('SECRET_READ_OK')\n"
+        "except OSError as e:\n"
+        "    print('SECRET_BLOCKED', e.errno)\n"
+        "try:\n"
+        "    open(r'{newp}', 'w').write('x'); print('WRITE_OK')\n"
+        "except OSError as e:\n"
+        "    print('WRITE_BLOCKED', e.errno)\n"
+        "open(r'{outp}', 'w').write('y'); print('WRITE_GRANTED_OK')\n"
+    ).format(ok=allowed / "ok.txt", secret=secret,
+             newp=tmp_path / "new.txt", outp=outdir / "draft.txt")
+
+    def preexec():
+        apply_landlock(read_exec_roots=python_read_roots() + [str(allowed)],
+                       read_roots=[], write_roots=[str(outdir)])
+
+    proc = subprocess.run(
+        [sys.executable, "-c", prog], preexec_fn=preexec,
+        capture_output=True, text=True,
+        env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"))
+    out = proc.stdout + proc.stderr
+    assert "INSIDE_READ INSIDE" in out, out      # granted read works (python ran)
+    assert "SECRET_READ_OK" not in out, out      # read outside the allow-list...
+    assert "SECRET_BLOCKED" in out, out          # ...is denied by the kernel
+    assert "WRITE_OK" not in out, out            # write outside the allow-list...
+    assert "WRITE_BLOCKED" in out, out           # ...is denied
+    assert "WRITE_GRANTED_OK" in out, out        # write to the granted dir works
+
+
+@pytest.mark.skipif(not (_LINUX and _GATED),
+                    reason="real isolation: Linux + SENTINEL_TEST_LINUX_SANDBOX=1")
 def test_real_chef_under_seccomp_matches_subprocess(tmp_path):
     import uuid
 
@@ -109,4 +153,4 @@ def test_real_chef_under_seccomp_matches_subprocess(tmp_path):
     assert chef_sec.draft_bytes == chef_sub.draft_bytes
     assert chef_sec.draft_bytes.startswith(b"Re:")
     # And the receipt honestly records the containment that actually ran.
-    assert chef_sec.receipt.containment == "seccomp"
+    assert chef_sec.receipt.containment == "seccomp+landlock"

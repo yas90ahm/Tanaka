@@ -549,22 +549,29 @@ containment class actually ran.
   STUB) and would carry a different, stronger `containment` label. The receipt
   always tells the truth about which one ran.
 - **`chef/linux_sandbox.py` — BUILT, the Linux peer of AppContainer.** An
-  in-process microsandbox (`containment="seccomp"`): a `preexec_fn` (run in the
-  forked child before exec) installs `PR_SET_NO_NEW_PRIVS` + a seccomp BPF
-  filter (assembled in `ctypes`, no deps) that makes the network syscalls
-  (`socket`/`connect`/`bind`) return EACCES. Privilege-free — needs no Docker,
-  no daemon, no user namespace — so it works on hardened/unprivileged hosts and
-  CI. With `socket` denied, every higher egress path (urllib.request, requests,
-  ssl) is denied too. Selectable via `sentinel-mcp --sandbox seccomp`. Same
-  fail-closed discipline: if confinement can't be applied, `run()` returns a
-  nonzero result (auditable EXECUTION_FAILED), never runs the chef unconfined.
-  **Proven in CI** by the gated `linux-sandbox-isolation` job
-  (`SENTINEL_TEST_LINUX_SANDBOX=1`): the filter denies socket creation at the
-  kernel, and a real chef under it produces a byte-identical draft to the
-  subprocess backend. FLAGS: same honest rung as AppContainer (OS sandbox,
-  shares the host kernel, not a VM/TEE). SCOPE: this backend blocks NETWORK;
-  filesystem confinement (landlock) is the next increment behind the same
-  `preexec_fn` — today the chef's own owner-dir path guard is the FS mechanism.
+  in-process microsandbox (`containment="seccomp+landlock"`): a `preexec_fn`
+  (run in the forked child before exec) installs `PR_SET_NO_NEW_PRIVS` + TWO
+  kernel boundaries assembled in `ctypes` (no deps): (1) a **seccomp** BPF
+  filter making the network syscalls (`socket`/`connect`/`bind`) return EACCES
+  — with `socket` denied, every higher egress path (urllib.request, requests,
+  ssl) is denied too; and (2) a **Landlock** ruleset (kernel 5.13+) confining
+  the filesystem to an allow-list — READ+EXEC on the Python runtime + system
+  libs + the kitchen fixtures, READ+WRITE only on the serving window +
+  ephemeral workspace, and everything else (/home, /root, /var, other tenants,
+  arbitrary writes) DENIED. Privilege-free — no Docker, no daemon, no user
+  namespace — so it works on hardened/unprivileged hosts and CI. Selectable via
+  `sentinel-mcp --sandbox seccomp`. Fail-closed: if confinement can't be
+  applied, `run()` returns a nonzero result (auditable EXECUTION_FAILED), never
+  runs the chef unconfined. **Proven in CI** by the gated
+  `linux-sandbox-isolation` job (`SENTINEL_TEST_LINUX_SANDBOX=1`): the kernel
+  denies socket creation, Landlock denies reads/writes outside the allow-list
+  (granted paths still work), and a real chef under both produces a
+  byte-identical draft to the subprocess backend. The Landlock layer is
+  DEFENSE-IN-DEPTH with the chef's own owner-dir guard (which narrows reads to
+  the tenant WITHIN the kitchen; Landlock denies everything OUTSIDE it). FLAGS:
+  same honest rung as AppContainer — an OS sandbox sharing the host kernel, not
+  a VM/TEE. Requires Landlock; on an older kernel the backend reports itself
+  unavailable and the selector falls back to the subprocess contract.
 - **`chef/mac_sandbox.py` — BUILT, the macOS peer.** An OS microsandbox
   (`containment="macsandbox"`) via the built-in `sandbox-exec` (ships with
   macOS, no install): it applies a Seatbelt/SBPL profile
