@@ -126,7 +126,15 @@ jobs:
       - name: Install package
         run: pip install -e ".[dev]"
 
-      - name: Prove the Seatbelt microsandbox (network + filesystem)
-        env:
-          SENTINEL_TEST_MAC_SANDBOX: "1"
-        run: python -m pytest sentinel_slice/tests/test_mac_sandbox.py -v
+      - name: "test: seatbelt_denies_network"
+        if: always()
+        env: { SENTINEL_TEST_MAC_SANDBOX: "1" }
+        run: python -m pytest "sentinel_slice/tests/test_mac_sandbox.py::test_seatbelt_denies_network_operation" -q
+      - name: "test: seatbelt_confines_filesystem"
+        if: always()
+        env: { SENTINEL_TEST_MAC_SANDBOX: "1" }
+        run: python -m pytest "sentinel_slice/tests/test_mac_sandbox.py::test_seatbelt_confines_filesystem" -q
+      - name: "test: real_chef_matches_subprocess"
+        if: always()
+        env: { SENTINEL_TEST_MAC_SANDBOX: "1" }
+        run: python -m pytest "sentinel_slice/tests/test_mac_sandbox.py::test_real_chef_under_macsandbox_matches_subprocess" -q
