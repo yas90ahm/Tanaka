@@ -1,11 +1,15 @@
 name: sandbox-isolation
 
-# Proves the chef sandbox GUARANTEE (not just the contract): on a Linux runner
-# it builds the chef image, runs a real chef inside a hardened container, and —
-# in a second pass — under gVisor (runsc). This is the job that turns "sandbox
-# is a subprocess contract" into "sandbox is a real isolation boundary."
-#
-# Kept separate from ci.yml because it needs Docker + gVisor and is Linux-only.
+# Proves the chef sandbox GUARANTEE (not just the contract) on real OS/runtime
+# boundaries, on every push and PR. Two jobs, two platforms:
+#   - container-isolation (Linux): builds the chef image, runs a real chef in a
+#     hardened container, then again under gVisor (runsc).
+#   - appcontainer-isolation (Windows): runs the in-process AppContainer
+#     microsandbox proofs — OS-enforced no-network + foreign-read denial — that
+#     are gated out of the default ubuntu suite in ci.yml.
+# Together they turn "sandbox is a subprocess contract" into "sandbox is a real,
+# OS-enforced isolation boundary." Kept separate from ci.yml because each needs a
+# specific OS + runtime.
 
 on:
   push:
@@ -56,3 +60,25 @@ jobs:
           SENTINEL_SANDBOX_IMAGE: "sentinel-chef"
           SENTINEL_SANDBOX_RUNTIME: "runsc"
         run: python -m pytest sentinel_slice/tests/test_sandbox.py -q
+
+  appcontainer-isolation:
+    # The in-process microsandbox: no Docker, no daemon — the slice asks the
+    # Windows kernel directly (CreateAppContainerProfile + a zero-capability
+    # security profile + icacls confinement + a kill-on-close Job object). These
+    # proofs are gated behind SENTINEL_TEST_APPCONTAINER=1 and skipped on the
+    # default ubuntu suite; here they actually run on Windows every push/PR.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+
+      - name: Prove the AppContainer microsandbox (OS-enforced no-network + foreign-read denial)
+        env:
+          SENTINEL_TEST_APPCONTAINER: "1"
+        run: python -m pytest sentinel_slice/tests/test_appcontainer.py -v
