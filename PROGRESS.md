@@ -780,11 +780,14 @@ as a documented, deliberate STUB rather than faked.
 
 ## STILL mocked / STUB below the console (unchanged)
 
-TEE attestation, microVM, provenance-signed kitchen, real SSO (console identity
-is a MOCK token table), live session/runtime revocation, anomaly baseline,
-signed continuously-updated curriculum, external chain anchoring, TLS/hardened
-public exposure. The operator control loop is now real on top of the existing
-engine; the layers below it remain as flagged.
+TEE attestation, microVM, provenance-signed kitchen, SSO/OIDC federation of
+console admin keys (console identity itself is REAL — Ed25519 signed requests
+per admin keypair verified against a `KeyRegistry`, per v0.3 phase 2 above;
+only federating those keys to a directory is unbuilt), live session/runtime
+revocation, anomaly baseline, signed continuously-updated curriculum, external
+chain anchoring, TLS/hardened public exposure. The operator control loop is
+now real on top of the existing engine; the layers below it remain as
+flagged.
 
 ## Known wrinkles (honest disclosure, not defects)
 
