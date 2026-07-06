@@ -1,5 +1,41 @@
 # Sentinel Loop — Vertical Slice
 
+## 60 seconds
+
+Sentinel Loop is a governance broker for AI agents. An agent orders a
+declared capability from a menu; a cashier checks the order against
+operator policy without reading its content; a disposable subprocess (the
+chef) runs exactly what got signed; and every outcome, fulfilled or
+refused, produces a hash-chained, Ed25519-signed receipt that anyone can
+verify offline with just the ledger file and a public key. There is no LLM
+anywhere in the repo — the agent side (the diner) is a deterministic
+script, because the thing under test is the governance path, not a model.
+
+**What's real:** the signed hash-chained ledger and its standalone
+verifier, the six-step cashier pipeline, ticket verification inside the
+chef, the operator console's Ed25519 request signing, and real OS sandboxing
+on Windows/Linux/macOS plus a KVM microVM backend — all under test, several
+proven in CI. **What's still mocked:** hardware TEE attestation
+(`MockAttestor`, every artifact it emits says `"mock": true`) and SSO/OIDC
+federation of admin keys. The full component-by-component table is below.
+
+Clone it, test it, run one order through it:
+
+```sh
+git clone <repo> && cd <repo>
+python -m venv .venv && .venv/Scripts/activate   # POSIX: source .venv/bin/activate
+pip install -e ".[dev]"
+python -m pytest                                 # 271 passing, 16 skip locally (env-gated OS/VM/GUI proofs)
+python -m sentinel_slice.run_slice demo.db        # one honest order + one blocked prompt injection
+python sentinel_slice/verify_ledger.py demo.db sentinel_slice/keys/cashier_ed25519_public.pem
+```
+
+Everything below goes deeper: what each piece is for, how a non-technical
+operator curates the menu, the full real-vs-mocked table, the installer, the
+sandbox backends, and the essay-to-code map.
+
+## The takeout model
+
 A working, verifiable vertical slice of the **takeout model** for AI-agent
 governance: an agent (the *diner*) that holds **no credentials** orders a
 declared capability from a *menu*; a *cashier* validates the order against
