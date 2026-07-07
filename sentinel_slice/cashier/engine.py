@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Yasir Qureshi
-"""Cashier engine: the five-step validation pipeline, ticket minting, and
+"""Cashier engine: the six-step validation pipeline, ticket minting, and
 rejection-receipt append. This is the only Phase-3 module that calls
 Ledger.append and signs tickets.
 
@@ -10,15 +10,16 @@ a fixture mailbox or fixture file. Scope is decided ONLY from the Order +
 policy + capability. Allowed imports: stdlib, cryptography, and
 sentinel_slice.{spine,ledger,menu,cashier} modules.
 
-Pipeline order (contract §7c), short-circuit at first failure:
-    1. nonce unseen        -> REPLAY
+Pipeline order (contract §7c's five steps, with the v0.3 kill switch
+inserted as step 4), short-circuit at first failure:
+    1. nonce unseen         -> REPLAY
     2. capability on menu   -> OFF_MENU
     3. role permitted       -> ROLE_NOT_PERMITTED
-    3b. capability paused   -> CAPABILITY_PAUSED  (v0.3 kill switch)
-    4. args within scope    -> OUT_OF_SCOPE
-    5. rate limit           -> RATE_LIMITED  (FLAG A)
+    4. capability paused    -> CAPABILITY_PAUSED  (v0.3 kill switch)
+    5. args within scope    -> OUT_OF_SCOPE
+    6. rate limit           -> RATE_LIMITED  (FLAG A)
 
-v0.3 split: the five-step decision now lives in `evaluate_order`, a PURE
+v0.3 split: the pipeline decision now lives in `evaluate_order`, a PURE
 function (read-only over the store, no ledger, no signing, no spawn, no nonce
 mutation) so the console can SIMULATE an order against a candidate policy with
 zero side effects. `process_order` calls `evaluate_order` and then performs
@@ -57,7 +58,7 @@ class TicketOutcome:
 class RejectionOutcome:
     accepted: bool          # always False for this class
     ticket: None            # always None
-    reason_code: str        # one of the 5 codes in the pipeline table
+    reason_code: str        # one of the 6 codes in the pipeline table
     receipt: Receipt        # the REJECTED receipt already appended to the ledger
 
 
@@ -83,7 +84,7 @@ def evaluate_order(
     policy_set: PolicySet,
     store: CashierStore,
 ) -> Decision:
-    """Run the five-step pipeline as a PURE function and return a Decision.
+    """Run the six-step pipeline as a PURE function and return a Decision.
 
     READ-ONLY over `store`: it uses `nonce_is_spent` (a read, not the
     mutating `nonce_seen`) and `rate_count` (already a read). It never
@@ -107,7 +108,7 @@ def evaluate_order(
             accepted=False, reason_code="ROLE_NOT_PERMITTED", scoped_args=None
         )
 
-    # --- Step 3b: kill switch (v0.3) ---
+    # --- Step 4: kill switch (v0.3) ---
     # The role MAY use this capability in normal times, but the operator has
     # paused it. Distinct from ROLE_NOT_PERMITTED so the audit trail shows a
     # deliberate pause, not a missing grant.
@@ -116,7 +117,7 @@ def evaluate_order(
             accepted=False, reason_code="CAPABILITY_PAUSED", scoped_args=None
         )
 
-    # --- Step 4: args within scope (structural, kitchen-blind) — FLAG B ---
+    # --- Step 5: args within scope (structural, kitchen-blind) — FLAG B ---
     # The capability declares which arg holds its scoped resource
     # (`scoped_input`, default "thread_id"). That value is namespaced
     # "<owner>/<local>"; scope passes iff owner == principal AND local is a
@@ -139,7 +140,7 @@ def evaluate_order(
     if owner == "" or owner != order.principal or local_unsafe:
         return Decision(accepted=False, reason_code="OUT_OF_SCOPE", scoped_args=None)
 
-    # --- Step 5: rate limit (read-only count) ---
+    # --- Step 6: rate limit (read-only count) ---
     if store.rate_count(order.principal, order.capability_id) >= policy.rate_limit_per_hour:
         return Decision(
             accepted=False, reason_code="RATE_LIMITED", scoped_args=None
@@ -197,7 +198,7 @@ def process_order(
     now=time.time,
     spawn=None,
 ) -> TicketOutcome | RejectionOutcome:
-    """Run the five-step pipeline for `order`, short-circuiting at the first
+    """Run the six-step pipeline for `order`, short-circuiting at the first
     failure. On rejection, append a REJECTED receipt and return a
     RejectionOutcome. On acceptance, mint+sign a Ticket, record the rate
     timestamp, optionally call spawn(ticket), and return a TicketOutcome

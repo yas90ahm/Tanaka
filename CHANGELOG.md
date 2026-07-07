@@ -5,9 +5,29 @@ git history. Full detail and honest BUILT/PARTIAL/STUB status for every
 component lives in `PROGRESS.md`; this file is the terse version-by-version
 summary.
 
-## [Unreleased] — 2026-06-15
+## [Unreleased]
 
-Hardening and CI-proof work on top of 0.15.0, not yet its own version bump:
+### 2026-07-06 — the thesis, in the repo
+
+- `THESIS.md` — the seven-essay argument the project is built from (trust
+  paradox → agent OS → takeout model → operator-as-buyer → threat surface →
+  continuous curriculum → institutional layer), condensed, each essay mapped
+  to where it lives in the code with honest real/partial/stub labels.
+- `THREATS.md` — the Essay 5 threat model applied to this codebase: every
+  threat class by entry point, with the test that proves the defense or the
+  plain statement that there isn't one.
+- README: "why it exists" up top; corrected the env-gated-proofs sentence
+  (GUI + installer proofs run on a dev box, not in CI — only the OS-sandbox
+  and microVM proofs run in CI).
+- `cashier/engine.py` docstrings: "five-step" → "six-step" (stale since the
+  v0.3 kill switch made it six); `CONSOLE_SPEC.md` now says plainly that the
+  People screen was never built.
+- PROGRESS.md de-staled: the header test count (249/8 → 271/16, with the
+  gated-test breakdown), and the closing out-of-scope list now carries
+  per-item current status (the console, multiple capabilities, and the KVM
+  microVM have long since been built; the rest remain stubs).
+
+### 2026-06-15 — hardening and CI proofs (on top of 0.15.0, not yet its own version bump)
 
 - Console identity replaced with real Ed25519 signed-request authentication
   (`console/signed_auth.py`), retiring the earlier mock dev-token table.

@@ -19,6 +19,15 @@ slider, clicks **Simulate** to see exactly what an agent could and couldn't do
 under it, clicks **Publish** (which is itself recorded and reversible), and
 watches a live findings feed she can click through to the underlying receipts.
 
+*(As built: the console ships Capabilities / Menu / Policies / Activity. The
+**People** screen — roles as directory-synced identities, an org chart from HR
+— was NOT built; roles are free-text strings the author types. That identity
+layer is a STUB behind the same `KeyRegistry` seam as SSO/OIDC. The input
+widgets also differ: the policy editor uses checkboxes, a free-text role
+field, and a numeric rate field — no slider; dropdowns appear on the Menu
+screen's capability builder. Everything else in the sentence exists and is
+tested.)*
+
 ## Non-negotiables (inherited + new)
 
 1. **The console is not a new trust hole.** It never sees payload content

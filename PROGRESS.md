@@ -2,18 +2,22 @@
 
 Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
-it is not optional and nothing in it is softened.
+it is not optional and nothing in it is softened. The argument this build
+serves is condensed in [THESIS.md](THESIS.md); the layer-by-layer threat
+model is [THREATS.md](THREATS.md).
 
-**Tests:** 249 passing, 8 skipped (`.venv/Scripts/python.exe -m pytest sentinel_slice/tests -q`).
-The skips are availability-gated integration tests: the ContainerSandbox
-Docker run (needs a container runtime; exercised in Linux CI); the real
-tkinter approval dialog and the two app-shell GUI tests (need a display;
-`SENTINEL_TEST_GUI=1` — exercised on the Windows dev box); the two real
-Windows AppContainer isolation tests (`SENTINEL_TEST_APPCONTAINER=1` —
-exercised live on the Windows dev box); the installer round trip
-(`SENTINEL_TEST_INSTALLER=1` — exercised live on the Windows dev box); and the
-off-platform refusal checks (AppContainer off-Windows, AppleVmSandbox
-off-macOS).
+**Tests:** 271 passing, 16 skipped locally (`python -m pytest -q`).
+The skips are gated tests, in two kinds. **14 env-gated proofs:** the
+ContainerSandbox/gVisor run (`SENTINEL_TEST_CONTAINER=1`), the two Windows
+AppContainer isolation tests (`SENTINEL_TEST_APPCONTAINER=1`), the three
+Linux seccomp+Landlock tests (`SENTINEL_TEST_LINUX_SANDBOX=1`), the three
+macOS Seatbelt tests (`SENTINEL_TEST_MAC_SANDBOX=1`), and the KVM microVM
+run (`SENTINEL_TEST_MICROVM=1`) — each exercised in CI on its target
+platform — plus the three tkinter GUI tests (`SENTINEL_TEST_GUI=1`) and the
+installer round trip (`SENTINEL_TEST_INSTALLER=1`), exercised live on the
+Windows dev box and NOT run by any CI workflow. **2 platform-gated checks:**
+the AppContainer off-Windows degradation check and the Linux-sandbox
+availability check, which only run on their absent platform.
 **All 10 acceptance tests pass.** The committed `ledger.db` holds the original
 v0.1 run (one honest order + one injected probe) PLUS a v0.2-format run
 appended on the SAME unbroken chain (schema evolution by append, never
@@ -778,16 +782,18 @@ being ours to command in-process is proven; the kernel + rootfs + VMM layer on
 top is the work, and it is a different, larger project than this slice — left
 as a documented, deliberate STUB rather than faked.
 
-## STILL mocked / STUB below the console (unchanged)
+## STILL mocked / STUB below the console
 
-TEE attestation, microVM, provenance-signed kitchen, SSO/OIDC federation of
+TEE attestation, provenance-signed kitchen, SSO/OIDC federation of
 console admin keys (console identity itself is REAL — Ed25519 signed requests
 per admin keypair verified against a `KeyRegistry`, per v0.3 phase 2 above;
 only federating those keys to a directory is unbuilt), live session/runtime
 revocation, anomaly baseline, signed continuously-updated curriculum, external
-chain anchoring, TLS/hardened public exposure. The operator control loop is
-now real on top of the existing engine; the layers below it remain as
-flagged.
+chain anchoring, TLS/hardened public exposure. (The microVM left this list in
+v0.12: `MicroVmSandbox` is BUILT and CI-proven; a Firecracker or
+confidential-VM variant remains unbuilt behind the same `run()` seam.) The
+operator control loop is now real on top of the existing engine; the layers
+below it remain as flagged.
 
 ## Known wrinkles (honest disclosure, not defects)
 
@@ -889,13 +895,32 @@ flagged.
 | AT09 | Policy round-trip byte-identical; changing the rate changes enforcement | PASS |
 | AT10 | Standalone verifier validates full chain from `ledger.db` + pubkey only | PASS |
 
-## STUB — out of scope for the slice (noted, not built)
+## STUB — the original v0.1 out-of-scope list, with current status
 
-Full Tanaka console — **STUB.** Multiple capabilities — **STUB.** Real LLM diner
-— **STUB.** Firecracker/gVisor microVM — **STUB.** Real TEE attestation —
-**STUB.** Curriculum delivery pipeline (signed, layered, continuously updated;
-the drill proves only its slot) — **STUB.** Behavioral anomaly dashboard (the
-inspector surfaces patterns; it has no baseline or model) — **STUB.**
-External chain anchoring — **STUB.** FastAPI/network surface with
-authentication (the gateway is in-process trust) — **STUB.** Each is a swap
-behind an existing contract; none changes a type signature.
+This was the slice's original out-of-scope declaration. Several items have
+since been built (see their version sections above); each line now carries
+its honest current status instead of pretending the list never moved:
+
+- Full Tanaka console — since **BUILT** (v0.3: engine seams, signed JSON
+  API, separation of duties, the self-contained UI).
+- Multiple capabilities — since **BUILT** (v0.5 behavior dispatch + three
+  shipped capabilities; v0.7 operator-curated menu).
+- Real LLM diner — **STILL STUB**, deliberately: the diner protocol is
+  model-agnostic and no LLM exists anywhere in the slice.
+- Firecracker/gVisor microVM — **PARTLY BUILT**: gVisor runs in CI behind
+  `ContainerSandbox`; a KVM/QEMU microVM (`MicroVmSandbox`) is **BUILT and
+  CI-proven**; Firecracker specifically remains a STUB behind the same seam.
+- Real TEE attestation — **STILL MOCK** (the one frontier needing real
+  silicon: hide-from-host + hardware attestation).
+- Curriculum delivery pipeline (signed, layered, continuously updated; the
+  drill proves only its slot) — **STILL STUB**.
+- Behavioral anomaly dashboard (the inspector surfaces patterns; it has no
+  baseline or model) — **STILL STUB**.
+- External chain anchoring — **STILL STUB** (see the tail-truncation known
+  gap above).
+- FastAPI/network surface with authentication (the gateway is in-process
+  trust; the console has its own signed-request localhost HTTP surface) —
+  **STILL STUB**.
+
+Each remaining stub is a swap behind an existing contract; none changes a
+type signature.

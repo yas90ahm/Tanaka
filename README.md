@@ -11,6 +11,15 @@ verify offline with just the ledger file and a public key. There is no LLM
 anywhere in the repo — the agent side (the diner) is a deterministic
 script, because the thing under test is the governance path, not a model.
 
+**Why it exists:** every useful AI tool has to see exactly the data we want
+protected from it, and the industry's current answer is a vendor promise.
+This repo is the working end of a seven-essay argument that the fix is
+architectural — agents need the operating-system layer every previous
+compute era eventually built, and that layer's real user is a non-technical
+operator, not a developer. The condensed argument lives in
+[THESIS.md](THESIS.md); the layer-by-layer threat model — what this defends
+and what it honestly does not — is [THREATS.md](THREATS.md).
+
 **What's real:** the signed hash-chained ledger and its standalone
 verifier, the six-step cashier pipeline, ticket verification inside the
 chef, the operator console's Ed25519 request signing, and real OS sandboxing
@@ -25,7 +34,7 @@ Clone it, test it, run one order through it:
 git clone <repo> && cd <repo>
 python -m venv .venv && .venv/Scripts/activate   # POSIX: source .venv/bin/activate
 pip install -e ".[dev]"
-python -m pytest                                 # 271 passing, 16 skip locally (env-gated OS/VM/GUI proofs)
+python -m pytest                                 # 271 passing, 16 skip locally (gated OS/VM/GUI/installer proofs + platform checks)
 python -m sentinel_slice.run_slice demo.db        # one honest order + one blocked prompt injection
 python sentinel_slice/verify_ledger.py demo.db sentinel_slice/keys/cashier_ed25519_public.pem
 ```
@@ -56,6 +65,11 @@ The slice exists to demonstrate four claims (see `SPEC.md`):
 4. **Audit-legible** — the rejection of a prompt-injected order is itself a
    chained receipt (`reason_code: OFF_MENU`). That receipt is the money
    artifact.
+
+These four claims are the slice-sized, falsifiable form of the properties
+Essay 3 claims for the whole architecture — *redundantly suspicious,
+structurally private, operator-configurable, attestable* — condensed in
+[THESIS.md §3](THESIS.md#3-the-takeout-model).
 
 There is **no LLM anywhere in this slice** — the thesis under test is the
 governance path, not the model.
@@ -148,7 +162,7 @@ python -m venv .venv
 
 pip install -e ".[dev]"           # installs cryptography + pytest + sentinel-* CLIs
 
-python -m pytest                  # 271 passing (16 env-gated OS-sandbox/VM/GUI proofs skip locally)
+python -m pytest                  # 271 passing (16 gated OS/VM/GUI/installer proofs + platform checks skip locally)
 ```
 
 You can verify the committed demo chain **before generating anything** — the
@@ -722,6 +736,9 @@ grants. An installer runs the setup so your dad never sees a flag.
 
 ## Layer map (essays → code)
 
+The argument behind each layer is condensed in [THESIS.md](THESIS.md), essay
+by essay, each section ending with where the idea lives in this code.
+
 | Takeout layer | Module | Job |
 |---|---|---|
 | Diner | `diner/agent.py`, `gateway.py` | Scripted reference agent (honest + injected modes); model-agnostic JSON counter |
@@ -738,15 +755,23 @@ grants. An installer runs the setup so your dad never sees a flag.
 
 ## Acceptance tests
 
-All 10 SPEC acceptance tests pass (`tests/test_at01_*` … `test_at10_*`), plus
+All 10 SPEC acceptance tests pass (`sentinel_slice/tests/test_at01_*` …
+`test_at10_*`), plus
 unit, hardening-regression, gateway, inspector, drill, console, signed-identity,
-and sandbox tests — **271 passing**, with 16 env-gated proofs (the real
-OS-sandbox / KVM-microVM / GUI runs) that execute on their target platform in
-CI. Highlights:
+and sandbox tests — **271 passing** on the Windows dev box, plus 16 gated
+tests that skip there: 14 env-gated proofs and 2 platform-only checks (an
+off-Windows degradation check and a Linux-only availability check; the
+passing/skip split shifts by a test or two with platform and container
+availability). Of the proofs, the
+OS-sandbox runs (AppContainer / seccomp+Landlock / Seatbelt /
+container+gVisor) and the KVM-microVM run execute on their target platforms
+in CI; the GUI-dialog and installer round-trips are **not** run by any CI
+workflow — PROGRESS.md records them as exercised live on a Windows dev box.
+Highlights:
 
 - **AT01** honest order → exact deterministic draft in the window; receipt
-  carries the digest and **no substring** of the draft appears anywhere in the
-  raw ledger bytes.
+  carries the digest, and the draft's **distinctive substrings** appear
+  nowhere in the raw ledger bytes.
 - **AT02** the injected `forward_inbox` order spawns **zero** chef processes
   and leaves a chained `OFF_MENU` rejection receipt.
 - **AT06** flipping one byte in row 50 of a 100-receipt chain makes the
@@ -767,10 +792,10 @@ What remains genuinely behind a seam, **not built**: `MockAttestor` → a TEE
 quote (the one frontier that needs real silicon — hide-from-host + hardware
 attestation); the fixture mailbox → a provenance-signed store; the in-process
 gateway → an authenticated network (FastAPI) surface; SSO/OIDC federation of the
-console's admin keys. The thesis behind the design lives in the
+console's admin keys. The thesis behind the design comes from the
 agent-infrastructure essay series (trust paradox → agent OS → takeout model →
 operator-as-buyer → threat surface → continuous curriculum → institutional
-layer).
+layer), condensed in-repo in [THESIS.md](THESIS.md).
 
 ## License
 
