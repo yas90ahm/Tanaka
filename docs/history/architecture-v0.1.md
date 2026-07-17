@@ -1,5 +1,7 @@
 # Sentinel Loop — Slice Architecture (v0.1)
 
+> Historical architecture from the first slice. It does not describe every current backend or console feature.
+
 Layers as contracts, not metaphor. Python 3.11+, stdlib-first. Dependencies:
 `cryptography` (Ed25519), `pytest`. SQLite for the ledger. No web framework
 needed for the slice — the API is in-process; FastAPI comes later.

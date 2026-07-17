@@ -1,9 +1,8 @@
 # Contributing to Sentinel Loop
 
-Thanks for looking. This repo is a vertical slice with a deliberately high bar
-for what counts as "done." Please read these before opening a PR — they are the
-same non-negotiables the codebase was built under (`CLAUDE.md`), and they are
-what keep the project trustworthy.
+Thanks for looking. This is a security prototype, so a small change can alter
+the promise it makes. Start with the [current architecture](docs/ARCHITECTURE.md),
+the [slice contract](docs/SPEC.md) and the [known limits](docs/THREATS.md).
 
 ## The non-negotiables
 
@@ -12,7 +11,8 @@ what keep the project trustworthy.
    substring-only assertions. A test that would still pass against a stub is
    not a test.
 2. **Nothing mocked is allowed to look real.** If you add a stand-in, it must
-   announce itself (`"mock": true`, a loud docstring, a `PROGRESS.md` entry).
+   announce itself (`"mock": true`, a loud docstring, and a clear note in the
+   current documentation).
    If a component would quietly need a capability the design forbids (network
    in the chef, kitchen imports in the cashier, content in the ledger), STOP
    and flag it rather than working around it.
@@ -20,8 +20,8 @@ what keep the project trustworthy.
    `UPDATE`/`DELETE` in their modules — there are grep tests that enforce this.
 4. **Canonical JSON for all hashing/signing:** `sort_keys=True,
    separators=(",", ":")`, UTF-8 bytes, via the one `spine.canonical` helper.
-5. **No LLM anywhere in the slice.** The diner is deterministic; the thesis
-   under test is the governance path, not a model.
+5. **No LLM in the reference slice.** The diner is deterministic; the
+   governance path is what the tests are proving.
 6. **Standalone verifiers stay standalone.** `verify_ledger.py` and
    `verify_policy_history.py` import nothing from `sentinel_slice`.
 7. Python 3.11+; runtime deps limited to `cryptography`.
@@ -38,9 +38,14 @@ CI runs the same on every push and pull request.
 
 ## Where to read first
 
-`SPEC.md` and `ARCHITECTURE.md` (the original slice), then `CONSOLE_SPEC.md`
-(the operator console), then `PROGRESS.md` (what's BUILT / PARTIAL / STUB and
-what's mocked). The agent-infrastructure essays are the thesis the code serves.
+Read [README.md](README.md) for the short version, then
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the current code path.
+[docs/SPEC.md](docs/SPEC.md) is the original slice contract and
+[docs/THREATS.md](docs/THREATS.md) records the security boundary.
+
+The earlier architecture, console specification, implementation brief and
+progress log are kept in [docs/history](docs/history/). They explain how the
+prototype got here. They are not current operating instructions.
 
 ## Developer Certificate of Origin + future licensing
 

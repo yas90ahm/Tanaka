@@ -1,5 +1,7 @@
 # CLAUDE.md — Build Instructions: Sentinel Loop Vertical Slice
 
+> Historical implementation brief. Kept to explain the original build sequence; not current contributor guidance.
+
 You are building the vertical slice defined in SPEC.md and ARCHITECTURE.md
 (both at repo root). Read both fully before writing any code. Where this
 file and those files conflict, SPEC.md wins.

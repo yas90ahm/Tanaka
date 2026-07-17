@@ -119,7 +119,7 @@ deploying institution, not the developer or the model vendor. **Attestable**
 is a receipt chain and an attestation report, not a vendor's word.
 
 **In this repo:** all six layers exist and run end-to-end — the full
-layer-to-module map is in the [README](README.md#layer-map-essays--code).
+layer-to-module map is in the [README](../README.md#the-path-of-an-order).
 The two-path invariant is enforced: content flows only diner ← window ← chef;
 evidence flows only ledger ← cashier/chef; the paths never carry each other's
 data. Redundant suspicion is tested, not asserted: a chef handed a ticket
@@ -198,7 +198,8 @@ what this codebase actually does about it, with the test or receipt that
 proves it and the gaps stated plainly — is [THREATS.md](THREATS.md). Two
 things worth naming here: the adversarial drill fires six attack classes
 through the *real* pipeline and every probe lands as a verifiable receipt;
-and the project red-teams itself in writing — PROGRESS.md documents a known
+and the project red-teams itself in writing — the
+[original progress record](history/PROGRESS.md) documents a known
 tail-truncation gap in the ledger (deleting the newest receipts leaves a
 valid prefix) as the concrete consequence of the external-anchoring stub,
 rather than hiding it.
@@ -290,8 +291,9 @@ code, and this document names it rather than pretending otherwise.
 
 ## How this was built — and why that is part of the thesis
 
-The essays, the architecture, the specs (`SPEC.md`, `ARCHITECTURE.md`,
-`CONSOLE_SPEC.md`, `CLAUDE.md`), and the acceptance gates are the author's.
+The essays, the architecture, the specs (`SPEC.md` and the historical
+`architecture-v0.1.md`, `CONSOLE_SPEC.md` and `implementation-brief.md`), and
+the acceptance gates are the author's.
 The implementation was written by AI coding agents working under those specs
 — with a declared scope, phase-by-phase STOP gates, behavior-asserting
 acceptance tests, and a standing rule that nothing mocked is allowed to look

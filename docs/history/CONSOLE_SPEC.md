@@ -1,5 +1,7 @@
 # Tanaka Console — Build Scope (v0.3)
 
+> Historical console build scope. The console now exists; use current source and tests for behavior.
+
 The operator-legible control surface. This is the piece the essays call the
 actual product: the layer that lets a non-engineer compliance officer author
 agent policy *correctly*, see consequences *before* committing, watch behavior

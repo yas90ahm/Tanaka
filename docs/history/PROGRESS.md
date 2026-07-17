@@ -1,10 +1,12 @@
 # PROGRESS — Sentinel Loop Vertical Slice
 
+> Historical progress record. Hard-coded test totals and phase labels below are not current status.
+
 Status at the end of the 5-phase build. Every component is rated **BUILT** /
 **PARTIAL** / **STUB** with one blunt sentence. Read the "LOUD FLAGS" section —
 it is not optional and nothing in it is softened. The argument this build
-serves is condensed in [THESIS.md](THESIS.md); the layer-by-layer threat
-model is [THREATS.md](THREATS.md).
+serves is condensed in [THESIS.md](../THESIS.md); the layer-by-layer threat
+model is [THREATS.md](../THREATS.md).
 
 **Tests:** 271 passing, 16 skipped locally (`python -m pytest -q`).
 The skips are gated tests, in two kinds. **14 env-gated proofs:** the
