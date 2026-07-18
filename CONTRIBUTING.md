@@ -43,9 +43,8 @@ Read [README.md](README.md) for the short version, then
 [docs/SPEC.md](docs/SPEC.md) is the original slice contract and
 [docs/THREATS.md](docs/THREATS.md) records the security boundary.
 
-The earlier architecture, console specification, implementation brief and
-progress log are kept in [docs/history](docs/history/). They explain how the
-prototype got here. They are not current operating instructions.
+Earlier plans and build records remain available in Git history. They are not
+current operating instructions.
 
 ## Developer Certificate of Origin + future licensing
 

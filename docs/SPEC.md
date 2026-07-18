@@ -80,8 +80,8 @@ dashboard, external chain anchoring. Each gets a `STUB` note, not code.
 
 All 10 acceptance tests pass; `verify_ledger.py` validates a real run;
 The original build record lists every component as BUILT / PARTIAL / STUB
-with one blunt sentence each, and loudly flags everything mocked. It is now
-preserved at [`docs/history/PROGRESS.md`](history/PROGRESS.md).
+with one blunt sentence each, and loudly flags everything mocked. The original
+progress record remains available in Git history.
 
 ---
 

@@ -73,7 +73,6 @@ sentinel_slice/consumer/    personal Allow/Ask/Block gate
 sentinel_slice/console/     local policy and review surface
 sentinel_slice/tests/       unit, acceptance and platform-gated tests
 microvm/                    KVM root filesystem and helpers
-docs/history/               earlier plans and build records
 ```
 
 The original v0.1 contract remains in [SPEC.md](SPEC.md). The longer argument

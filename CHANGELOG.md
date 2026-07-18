@@ -1,8 +1,8 @@
 # Changelog
 
 All notable changes to Sentinel Loop, in order. Dates are UTC, taken from the
-git history. This is the terse version-by-version summary. The progress record
-from the original build is preserved in `docs/history/PROGRESS.md`.
+git history. This is the terse version-by-version summary. The longer progress
+record from the original build remains in Git history.
 
 ## [Unreleased]
 
@@ -19,10 +19,10 @@ from the original build is preserved in `docs/history/PROGRESS.md`.
   (GUI + installer proofs run on a dev box, not in CI — only the OS-sandbox
   and microVM proofs run in CI).
 - `cashier/engine.py` docstrings: "five-step" → "six-step" (stale since the
-  v0.3 kill switch made it six); `docs/history/CONSOLE_SPEC.md` now says plainly
-  that the People screen was never built.
-- `docs/history/PROGRESS.md` de-staled: the header test count (249/8 → 271/16, with the
-  gated-test breakdown), and the closing out-of-scope list now carries
+  v0.3 kill switch made it six); the console record now says plainly that the
+  People screen was never built.
+- The progress record was updated: the header test count changed from 249/8 to
+  271/16 with the gated-test breakdown, and the closing out-of-scope list carries
   per-item current status (the console, multiple capabilities, and the KVM
   microVM have long since been built; the rest remain stubs).
 

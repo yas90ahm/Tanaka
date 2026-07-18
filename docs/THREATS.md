@@ -53,8 +53,8 @@ refused *and still receipted* under a gateway-assigned identity
 flooding the counter cannot slip beneath the audit trail; the raw bytes are
 never stored (privacy invariant holds). Residual: the MCP gateway's
 pre-order intake errors (unknown tool, non-object arguments) return to the
-caller but are not yet receipted — flagged in the
-[original progress record](history/PROGRESS.md), not fixed.
+caller but are not yet receipted. The original progress record in Git history
+flags this as unfixed.
 
 **Compositional information leakage — NOT MODELED.** Two narrowly-scoped
 agents whose combined outputs reveal what neither should. The slice governs
@@ -191,9 +191,8 @@ altered and no earlier row removed — but deleting the *newest* receipts
 leaves a valid prefix the verifier still accepts. An attacker with DB write
 access could quietly drop the latest rejection receipt. This is the concrete
 consequence of the external-anchoring STUB (co-signing head+count to an
-external witness), documented in the
-[original progress record](history/PROGRESS.md) rather than discovered by a
-reviewer.
+external witness), documented in the original progress record in Git history
+rather than discovered by a reviewer.
 
 **Audit overwhelm — PARTIAL.** The inspector emits a short, deterministic
 findings report (off-menu attempts, replays, rate pressure, execution
@@ -225,15 +224,15 @@ geopolitical version of the problem.
 - A multi-agent red-team review of the slice produced 10 findings, all on
   failure/adversarial paths; all 10 fixed with regression tests
   (`sentinel_slice/tests/test_fix_*.py` — cross-tenant traversal, silent
-  no-receipt acceptance, exit-code robustness). The
-  [original progress record](history/PROGRESS.md) documents the
+  no-receipt acceptance, exit-code robustness). The original progress record
+  in Git history documents the
   pass unsoftened, grouped into those three fix areas.
 - The adversarial drill fires 6 attack classes through the real pipeline on
   demand; each probe lands as a verifiable receipt; the drill's verdict
   flips to FAIL on any drift, including a quietly weakened policy (tested);
   the CLI maps a failing report to exit 1.
 - The tail-truncation gap above was found by the project's own red-team
-  pass and published in the [original progress record](history/PROGRESS.md).
+  pass and published in the original progress record, now in Git history.
 - Not yet done, and worth stating: no external (non-author) security review,
   no fuzzing of the order/ticket parsers, no side-channel analysis. The
   console's request-signing scheme is hand-rolled (canonical string +

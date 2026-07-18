@@ -198,8 +198,8 @@ what this codebase actually does about it, with the test or receipt that
 proves it and the gaps stated plainly — is [THREATS.md](THREATS.md). Two
 things worth naming here: the adversarial drill fires six attack classes
 through the *real* pipeline and every probe lands as a verifiable receipt;
-and the project red-teams itself in writing — the
-[original progress record](history/PROGRESS.md) documents a known
+and the project red-teams itself in writing. The original progress record in
+Git history documents a known
 tail-truncation gap in the ledger (deleting the newest receipts leaves a
 valid prefix) as the concrete consequence of the external-anchoring stub,
 rather than hiding it.
