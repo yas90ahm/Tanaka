@@ -1,0 +1,1 @@
+Introducing Sentinel Loop: your AI agent holds zero credentials — it orders from a menu, and every action, even a blocked prompt injection, leaves an Ed25519-signed receipt you can verify offline. 271 tests passing. No LLM inside.

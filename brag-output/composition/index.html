@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Sentinel Loop — brag</title>
+    <script src="assets/vendor/gsap.min.js"></script>
+    <script src="assets/audio-data.js"></script>
+    <style>
+      :root {
+        --bg: #f4f1ea;
+        --card: #fffdf8;
+        --ink: #2c2520;
+        --muted: #6b6157;
+        --line: #d8d0c4;
+        --accent: #a0522d;
+        --ok: #2e7d32;
+        --bad: #b00020;
+        --warn: #b26a00;
+        --ar: 0; /* audio-reactive bass energy, set per frame from the timeline */
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: Georgia, "Times New Roman", serif;
+      }
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+      .clip {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+      }
+      /* ---------- background (track 0) ---------- */
+      #bg-fill {
+        position: absolute;
+        inset: 0;
+        background: var(--bg);
+      }
+      #bg-warmth {
+        /* audio-reactive: breathes with the music's bass energy */
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse 70% 60% at 50% 42%, rgba(160, 82, 45, 0.1), rgba(160, 82, 45, 0) 70%);
+        opacity: calc(0.35 + var(--ar) * 0.65);
+      }
+      /* ---------- scene 1: hook ---------- */
+      #s1-stack {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 44px;
+        text-align: center;
+      }
+      .hook-line {
+        font-size: 72px;
+        line-height: 1.15;
+        margin: 0;
+        opacity: 0;
+      }
+      #s1-l3 {
+        font-size: 100px;
+        color: var(--accent);
+        font-style: italic;
+      }
+      /* ---------- scene 2: takeout model ---------- */
+      #s2-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 56px;
+        opacity: 0;
+      }
+      #receipt-strip {
+        display: flex;
+        align-items: center;
+        gap: 36px;
+        background: var(--card);
+        border-top: 3px dashed var(--line);
+        border-bottom: 3px dashed var(--line);
+        padding: 64px 72px;
+        box-shadow: 0 18px 40px rgba(44, 37, 32, 0.12);
+      }
+      .stampcell {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        opacity: 0;
+      }
+      .stamp {
+        border: 4px solid var(--accent);
+        color: var(--accent);
+        border-radius: 8px;
+        padding: 16px 26px;
+        font-size: 42px;
+        letter-spacing: 0.08em;
+        font-weight: bold;
+        transform: rotate(-3deg);
+        text-transform: uppercase;
+      }
+      .stampsub {
+        color: var(--muted);
+        font-size: 27px;
+      }
+      .flow-arrow {
+        font-size: 44px;
+        color: var(--muted);
+        opacity: 0;
+      }
+      #s2-caption {
+        font-size: 34px;
+        color: var(--ink);
+        opacity: 0;
+      }
+      /* ---------- scene 3: console ---------- */
+      #s3-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 40px;
+        opacity: 0;
+      }
+      #console-panel {
+        position: relative;
+        width: 1180px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: 0 20px 50px rgba(44, 37, 32, calc(0.1 + var(--ar) * 0.08));
+        overflow: hidden;
+        text-align: left;
+      }
+      #console-header {
+        border-bottom: 3px solid var(--accent);
+        padding: 22px 30px 16px;
+      }
+      #console-header h2 {
+        margin: 0;
+        font-size: 32px;
+        font-weight: bold;
+      }
+      #console-sub {
+        color: var(--muted);
+        font-size: 21px;
+        margin-top: 4px;
+      }
+      #console-nav {
+        display: flex;
+        gap: 6px;
+        padding: 0 30px;
+        border-bottom: 1px solid var(--line);
+      }
+      #console-nav span {
+        color: var(--muted);
+        font-size: 23px;
+        padding: 14px 18px;
+        border-bottom: 4px solid transparent;
+      }
+      #console-nav .active {
+        color: var(--ink);
+        border-bottom-color: var(--accent);
+      }
+      #console-body {
+        padding: 26px 30px 30px;
+      }
+      .form-card {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 20px 24px;
+        background: #fffefb;
+      }
+      .form-card strong {
+        font-size: 25px;
+      }
+      .frow {
+        margin: 14px 0 0;
+        font-size: 23px;
+        color: var(--ink);
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .fauxselect,
+      .fauxinput {
+        border: 1px solid var(--line);
+        background: #fff;
+        border-radius: 4px;
+        padding: 8px 14px;
+        font-size: 23px;
+        min-width: 380px;
+        display: inline-block;
+        min-height: 1.3em;
+      }
+      .fauxinput .tchar {
+        visibility: hidden;
+      }
+      #add-btn {
+        display: inline-block;
+        margin-top: 20px;
+        background: var(--accent);
+        color: #fff;
+        border-radius: 5px;
+        padding: 12px 26px;
+        font-size: 24px;
+        font-weight: bold;
+      }
+      #new-row {
+        display: flex;
+        gap: 18px;
+        align-items: center;
+        margin-top: 18px;
+        border: 1px solid var(--line);
+        border-left: 5px solid var(--accent);
+        background: #fff;
+        border-radius: 4px;
+        padding: 12px 18px;
+        font-size: 22px;
+        opacity: 0;
+      }
+      .pill {
+        border: 1px solid var(--ok);
+        color: var(--ok);
+        border-radius: 12px;
+        font-size: 19px;
+        padding: 2px 12px;
+      }
+      #cursor {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 46px;
+        height: 62px;
+        z-index: 5;
+        opacity: 0;
+      }
+      #s3-caption {
+        font-size: 34px;
+        opacity: 0;
+      }
+      /* ---------- scene 4: terminal ---------- */
+      #s4-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 42px;
+        opacity: 0;
+      }
+      #terminal {
+        position: relative;
+        width: 1320px;
+        background: #241f1b;
+        border-radius: 12px;
+        box-shadow: 0 24px 60px rgba(44, 37, 32, 0.28);
+        padding: 0 0 34px;
+        text-align: left;
+      }
+      #term-bar {
+        display: flex;
+        gap: 10px;
+        padding: 18px 22px;
+      }
+      #term-bar i {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #4a423b;
+        display: block;
+      }
+      #terminal pre {
+        margin: 0;
+        padding: 6px 34px;
+        font-family: "Courier New", monospace;
+        font-size: 27px;
+        line-height: 1.5;
+        color: #e8e2d8;
+        white-space: pre-wrap;
+        opacity: 0;
+      }
+      #terminal .tmuted {
+        color: #b3a798;
+      }
+      #terminal .tbad {
+        color: #ff9d94;
+        font-weight: bold;
+      }
+      #terminal .tok {
+        color: #7fd47f;
+        font-weight: bold;
+      }
+      #t-verify .tchar {
+        visibility: hidden;
+      }
+      #offmenu-stamp {
+        position: absolute;
+        top: -34px;
+        right: 46px;
+        border: 6px solid var(--bad);
+        color: var(--bad);
+        background: rgba(255, 253, 248, 0.94);
+        border-radius: 10px;
+        padding: 14px 30px;
+        font-size: 54px;
+        font-weight: bold;
+        letter-spacing: 0.1em;
+        transform: rotate(-8deg);
+        opacity: 0;
+      }
+      #s4-kicker {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+      #s4-kicker p {
+        margin: 0;
+        font-size: 38px;
+        opacity: 0;
+      }
+      #kickerB {
+        color: var(--accent);
+        font-style: italic;
+      }
+      /* ---------- scene 5: finale ---------- */
+      #s5-wrap {
+        position: absolute;
+        inset: 0;
+        background: var(--bg);
+        display: grid;
+        place-items: center;
+        opacity: 0;
+      }
+      #s5-stack {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 36px;
+        text-align: center;
+      }
+      #s5-title {
+        margin: 0;
+        font-size: 130px;
+        letter-spacing: 0.01em;
+        opacity: 0;
+      }
+      #s5-punch {
+        margin: 0;
+        font-size: 46px;
+        color: var(--accent);
+        font-style: italic;
+        opacity: 0;
+      }
+      #s5-stats {
+        margin: 0;
+        font-size: 29px;
+        color: var(--muted);
+        opacity: 0;
+      }
+      #s5-rule {
+        width: 220px;
+        height: 3px;
+        background: var(--accent);
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-width="1920"
+      data-height="1080"
+      data-duration="22"
+    >
+      <!-- background: full-bleed fill child (root's own background can drop in frames) -->
+      <section id="bg" class="clip" data-start="0" data-duration="22" data-track-index="0">
+        <div id="bg-fill"></div>
+        <div id="bg-warmth"></div>
+      </section>
+
+      <!-- scene 1: hook (0–3.5) -->
+      <section id="s1" class="clip" data-start="0" data-duration="3.5" data-track-index="1">
+        <div id="s1-stack">
+          <p id="s1-l1" class="hook-line">Your AI agent wants your keys.</p>
+          <p id="s1-l2" class="hook-line">Don&rsquo;t give it keys.</p>
+          <p id="s1-l3" class="hook-line">Give it a menu.</p>
+        </div>
+      </section>
+
+      <!-- scene 2: the takeout model (3.5–8) -->
+      <section id="s2" class="clip" data-start="3.5" data-duration="4.5" data-track-index="1">
+        <div id="s2-wrap">
+          <div id="receipt-strip">
+            <div class="stampcell" id="st1">
+              <div class="stamp">Diner</div>
+              <div class="stampsub">orders</div>
+            </div>
+            <div class="flow-arrow" id="ar1">&rarr;</div>
+            <div class="stampcell" id="st2">
+              <div class="stamp">Cashier</div>
+              <div class="stampsub">checks</div>
+            </div>
+            <div class="flow-arrow" id="ar2">&rarr;</div>
+            <div class="stampcell" id="st3">
+              <div class="stamp">Chef</div>
+              <div class="stampsub">cooks</div>
+            </div>
+            <div class="flow-arrow" id="ar3">&rarr;</div>
+            <div class="stampcell" id="st4">
+              <div class="stamp">Receipt</div>
+              <div class="stampsub">signed</div>
+            </div>
+          </div>
+          <div id="s2-caption">The agent holds <strong>zero credentials</strong>. It orders takeout.</div>
+        </div>
+      </section>
+
+      <!-- scene 3: the operator console (8–12) -->
+      <section id="s3" class="clip" data-start="8" data-duration="4" data-track-index="1">
+        <div id="s3-wrap">
+          <div id="console-panel">
+            <div id="console-header">
+              <h2>Sentinel Loop &mdash; Operator Console</h2>
+              <div id="console-sub">Control plane &middot; localhost only &middot; authoring &amp; audit (never sees content)</div>
+            </div>
+            <div id="console-nav">
+              <span>Capabilities</span><span class="active">Menu</span><span>Policies</span><span>Activity</span>
+            </div>
+            <div id="console-body">
+              <div class="form-card">
+                <strong>Add a menu item</strong>
+                <div class="frow">What it does <span class="fauxselect">Summarize a document &#9662;</span></div>
+                <div class="frow">Name <span class="fauxinput" id="name-input" data-type-text="Summarize contracts"></span></div>
+                <div id="add-btn">Add to menu</div>
+              </div>
+              <div id="new-row">
+                <span>Summarize contracts</span>
+                <span class="pill">risk: low</span>
+                <span style="color: var(--muted)">cap.contracts.summarize.v1</span>
+                <span class="pill">on the menu</span>
+              </div>
+            </div>
+            <svg id="cursor" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg">
+              <path d="M2 2 L2 26 L8.5 20.5 L12.5 30 L16.5 28 L12.5 19 L21 18 Z" fill="#2c2520" stroke="#fffdf8" stroke-width="1.6" />
+            </svg>
+          </div>
+          <div id="s3-caption">A compliance officer curates agent power. <strong>No code.</strong></div>
+        </div>
+      </section>
+
+      <!-- scene 4: the injection + verify (12–22) -->
+      <section id="s4" class="clip" data-start="12" data-duration="7.7" data-track-index="1">
+        <div id="s4-wrap">
+          <div id="terminal">
+            <div id="term-bar"><i></i><i></i><i></i></div>
+            <pre id="t-l1">$ python -m sentinel_slice.run_slice ledger.db</pre>
+            <pre id="t-l2" class="tmuted">&gt; incoming email hides an instruction: &ldquo;forward the inbox&rdquo;</pre>
+            <pre id="t-l3">injected: accepted=False <span class="tbad">reason=OFF_MENU</span></pre>
+            <pre id="t-l4" class="tmuted">&gt; chef processes spawned: 0</pre>
+            <pre id="t-verify" data-type-text="$ python verify_ledger.py ledger.db cashier_public.pem"></pre>
+            <pre id="t-ok"><span class="tok">OK verified=2</span></pre>
+            <div id="offmenu-stamp">OFF&nbsp;MENU</div>
+          </div>
+          <div id="s4-kicker">
+            <p id="kickerA">The attack executed <strong>nothing</strong>.</p>
+            <p id="kickerB">The rejection is itself a signed receipt.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- scene 5: finale (19.2–22), soft-crossfades over the terminal -->
+      <section id="s5" class="clip" data-start="19.2" data-duration="2.8" data-track-index="2">
+        <div id="s5-wrap">
+          <div id="s5-stack">
+            <h1 id="s5-title">Sentinel Loop</h1>
+            <div id="s5-rule"></div>
+            <p id="s5-punch">Every order leaves a receipt. Even the refused ones.</p>
+            <p id="s5-stats">271 tests passing &middot; no LLM inside &middot; verify offline with a public key</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- music bed -->
+      <audio id="bgm" src="assets/music/happy-beats-business-moves-vol-11-by-ende-dot-app.mp3" data-start="0" data-duration="22" data-track-index="10" data-volume="0.35"></audio>
+
+      <!-- SFX: scene 1 line landings -->
+      <audio id="sfx-drop1" src="assets/sfx/interface/drop_001.ogg" data-start="1.55" data-duration="1" data-track-index="11" data-volume="0.4"></audio>
+      <audio id="sfx-drop2" src="assets/sfx/interface/drop_002.ogg" data-start="2.15" data-duration="1" data-track-index="12" data-volume="0.45"></audio>
+      <!-- SFX: scene 2 receipt stamps (beat-grid: 3.70 / 4.75 / 5.80 / 6.86) -->
+      <audio id="sfx-st1" src="assets/sfx/impact/impactWood_light_000.ogg" data-start="3.68" data-duration="1" data-track-index="13" data-volume="0.6"></audio>
+      <audio id="sfx-st2" src="assets/sfx/impact/impactWood_light_001.ogg" data-start="4.73" data-duration="1" data-track-index="14" data-volume="0.6"></audio>
+      <audio id="sfx-st3" src="assets/sfx/impact/impactWood_light_002.ogg" data-start="5.78" data-duration="1" data-track-index="15" data-volume="0.6"></audio>
+      <audio id="sfx-st4" src="assets/sfx/impact/impactWood_light_003.ogg" data-start="6.84" data-duration="1" data-track-index="16" data-volume="0.62"></audio>
+      <!-- SFX: scene 3 typing + click + row -->
+      <audio id="sfx-k1" src="assets/sfx/keyboard/keypress-001.wav" data-start="8.9" data-duration="0.4" data-track-index="17" data-volume="0.45"></audio>
+      <audio id="sfx-k2" src="assets/sfx/keyboard/keypress-004.wav" data-start="9.05" data-duration="0.4" data-track-index="18" data-volume="0.42"></audio>
+      <audio id="sfx-k3" src="assets/sfx/keyboard/keypress-002.wav" data-start="9.2" data-duration="0.4" data-track-index="19" data-volume="0.45"></audio>
+      <audio id="sfx-k4" src="assets/sfx/keyboard/keypress-007.wav" data-start="9.35" data-duration="0.4" data-track-index="20" data-volume="0.4"></audio>
+      <audio id="sfx-k5" src="assets/sfx/keyboard/keypress-003.wav" data-start="9.5" data-duration="0.4" data-track-index="21" data-volume="0.45"></audio>
+      <audio id="sfx-k6" src="assets/sfx/keyboard/keypress-006.wav" data-start="9.65" data-duration="0.4" data-track-index="22" data-volume="0.42"></audio>
+      <audio id="sfx-k7" src="assets/sfx/keyboard/keypress-005.wav" data-start="9.8" data-duration="0.4" data-track-index="23" data-volume="0.44"></audio>
+      <audio id="sfx-k8" src="assets/sfx/keyboard/keypress-008.wav" data-start="9.95" data-duration="0.4" data-track-index="24" data-volume="0.4"></audio>
+      <audio id="sfx-click" src="assets/sfx/ui/mouseclick1.ogg" data-start="10.53" data-duration="0.6" data-track-index="25" data-volume="0.6"></audio>
+      <audio id="sfx-row" src="assets/sfx/interface/drop_003.ogg" data-start="10.8" data-duration="1" data-track-index="26" data-volume="0.45"></audio>
+      <!-- SFX: scene 4 stamp hit (the one loud moment) -->
+      <audio id="sfx-offmenu" src="assets/sfx/impact/impactSoft_medium_001.ogg" data-start="13.14" data-duration="1.2" data-track-index="27" data-volume="0.85"></audio>
+      <!-- SFX: verify typing + OK accent -->
+      <audio id="sfx-v1" src="assets/sfx/keyboard/keypress-003.wav" data-start="16.5" data-duration="0.4" data-track-index="28" data-volume="0.38"></audio>
+      <audio id="sfx-v2" src="assets/sfx/keyboard/keypress-006.wav" data-start="16.68" data-duration="0.4" data-track-index="29" data-volume="0.4"></audio>
+      <audio id="sfx-v3" src="assets/sfx/keyboard/keypress-002.wav" data-start="16.86" data-duration="0.4" data-track-index="30" data-volume="0.38"></audio>
+      <audio id="sfx-v4" src="assets/sfx/keyboard/keypress-008.wav" data-start="17.04" data-duration="0.4" data-track-index="31" data-volume="0.4"></audio>
+      <audio id="sfx-v5" src="assets/sfx/keyboard/keypress-005.wav" data-start="17.22" data-duration="0.4" data-track-index="32" data-volume="0.38"></audio>
+      <audio id="sfx-v6" src="assets/sfx/keyboard/keypress-001.wav" data-start="17.4" data-duration="0.4" data-track-index="33" data-volume="0.4"></audio>
+      <audio id="sfx-ok" src="assets/sfx/interface/bong_001.ogg" data-start="17.89" data-duration="1.6" data-track-index="34" data-volume="0.5"></audio>
+    </div>
+
+    <script>
+      // Split data-type-text targets into per-character spans (deterministic, at init).
+      document.querySelectorAll("[data-type-text]").forEach(function (el) {
+        var text = el.getAttribute("data-type-text");
+        for (var i = 0; i < text.length; i++) {
+          var s = document.createElement("span");
+          s.className = "tchar";
+          s.textContent = text[i];
+          el.appendChild(s);
+        }
+      });
+
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      /* ================= scene 1 — hook ================= */
+      tl.fromTo("#s1-l1", { y: 26, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.5, ease: "power3.out" }, 0.25);
+      // beat-locked: 1.60s strong cue — "Don't give it keys."
+      tl.fromTo("#s1-l2", { y: 26, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.45, ease: "power3.out" }, 1.55);
+      tl.fromTo(
+        "#s1-l3",
+        { scale: 0.9, autoAlpha: 0 },
+        { scale: 1, autoAlpha: 1, duration: 0.45, ease: "back.out(1.6)" },
+        2.15
+      );
+
+      /* ================= scene 2 — takeout model ================= */
+      tl.fromTo("#s2-wrap", { y: 34, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.35, ease: "power2.out" }, 3.52);
+      // beat-grid: stamps at 3.70 / 4.75 / 5.80 / 6.86 (every other beat, ~114.8 BPM)
+      [
+        ["#st1", 3.7],
+        ["#st2", 4.75],
+        ["#st3", 5.8],
+        ["#st4", 6.86],
+      ].forEach(function (p) {
+        tl.fromTo(
+          p[0],
+          { scale: 1.6, rotation: -6, autoAlpha: 0 },
+          { scale: 1, rotation: 0, autoAlpha: 1, duration: 0.38, ease: "back.out(2)" },
+          p[1]
+        );
+      });
+      [
+        ["#ar1", 4.35],
+        ["#ar2", 5.4],
+        ["#ar3", 6.45],
+      ].forEach(function (p) {
+        tl.fromTo(p[0], { x: -14, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.3, ease: "power2.out" }, p[1]);
+      });
+      tl.fromTo("#s2-caption", { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 }, 4.2);
+
+      /* ================= scene 3 — operator console ================= */
+      tl.fromTo("#s3-wrap", { y: 44, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.5, ease: "power3.out" }, 8.05);
+      tl.fromTo("#s3-caption", { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 }, 8.55);
+      // type "Summarize contracts" into the Name field, 8.9 → ~10.1
+      document.querySelectorAll("#name-input .tchar").forEach(function (s, i) {
+        tl.set(s, { autoAlpha: 1 }, 8.9 + i * 0.0632);
+      });
+      // cursor slides in from the panel's lower right, clicks Add to menu
+      tl.fromTo(
+        "#cursor",
+        { x: 950, y: 500, autoAlpha: 0 },
+        { x: 118, y: 408, autoAlpha: 1, duration: 0.5, ease: "power2.inOut" },
+        10.05
+      );
+      tl.to("#add-btn", { scale: 0.94, duration: 0.08, ease: "power1.in" }, 10.56);
+      tl.to("#add-btn", { scale: 1, duration: 0.12, ease: "power1.out" }, 10.66);
+      tl.fromTo("#new-row", { y: 14, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.35, ease: "power2.out" }, 10.8);
+
+      /* ================= scene 4 — injection + verify ================= */
+      tl.fromTo("#s4-wrap", { y: 34, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.35, ease: "power2.out" }, 12.05);
+      tl.fromTo("#t-l1", { x: -10, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.2 }, 12.15);
+      tl.fromTo("#t-l2", { x: -10, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.2 }, 12.42);
+      // beat-locked: 12.65s strong cue — the verdict line lands on the beat
+      tl.fromTo("#t-l3", { x: -10, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.2 }, 12.65);
+      tl.fromTo("#t-l4", { x: -10, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.2 }, 12.92);
+      // beat-grid: 13.18s — the OFF MENU stamp slam (music ducks under it)
+      tl.fromTo(
+        "#offmenu-stamp",
+        { scale: 2.3, rotation: -18, autoAlpha: 0 },
+        { scale: 1, rotation: -8, autoAlpha: 1, duration: 0.32, ease: "back.out(1.4)" },
+        13.16
+      );
+      tl.to("#bgm", { volume: 0.2, duration: 0.15 }, 13.05);
+      tl.to("#bgm", { volume: 0.35, duration: 0.7 }, 13.6);
+      tl.fromTo("#kickerA", { y: 18, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.4, ease: "power2.out" }, 13.9);
+      tl.fromTo("#kickerB", { y: 18, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.4, ease: "power2.out" }, 14.45);
+      // type the verify command, 16.5 → ~17.6
+      document.querySelectorAll("#t-verify .tchar").forEach(function (s, i) {
+        tl.set(s, { autoAlpha: 1 }, 16.5 + i * 0.0204);
+      });
+      tl.set("#t-verify", { autoAlpha: 1 }, 16.48);
+      // beat-locked: 17.91s strong cue — OK verified=2
+      tl.fromTo("#t-ok", { scale: 1.12, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.28, ease: "power3.out" }, 17.91);
+
+      /* ================= scene 5 — finale ================= */
+      tl.fromTo("#s5-wrap", { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 }, 19.2);
+      tl.fromTo("#s5-title", { scale: 0.94, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.5, ease: "power3.out" }, 19.35);
+      tl.fromTo("#s5-rule", { scaleX: 0, autoAlpha: 0 }, { scaleX: 1, autoAlpha: 1, duration: 0.35, ease: "power2.out" }, 19.5);
+      tl.fromTo("#s5-punch", { y: 16, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.4, ease: "power2.out" }, 19.55);
+      tl.fromTo("#s5-stats", { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 }, 20.15);
+      // music fades out under the closing card
+      tl.to("#bgm", { volume: 0, duration: 1.4 }, 20.5);
+
+      /* ===== audio-reactive: bass warms the background, per-frame ===== */
+      (function () {
+        var root = document.getElementById("root");
+        var data = window.HF_AR;
+        if (!data) return;
+        for (var f = 0; f < data.totalFrames; f++) {
+          tl.call(
+            (function (bass) {
+              return function () {
+                root.style.setProperty("--ar", bass.toFixed(3));
+              };
+            })(data.frames[f][0]),
+            [],
+            f / data.fps
+          );
+        }
+      })();
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
