@@ -35,7 +35,7 @@ doesn't trace to one of these, it's out of scope:
   and the **rejection itself is a chained receipt** with reason code
   `OFF_MENU`. That receipt is the money artifact.
 
-## Explicitly mocked (flag loudly in code and PROGRESS.md)
+## Explicitly mocked (flag loudly in code and current documentation)
 
 - **Attestation:** a `MockAttestor` signs a hash of the chef's code as its
   "measurement." This proves the receipt *slot* for attestation, not TEE
@@ -79,8 +79,9 @@ dashboard, external chain anchoring. Each gets a `STUB` note, not code.
 ## Definition of done
 
 All 10 acceptance tests pass; `verify_ledger.py` validates a real run;
-`PROGRESS.md` at repo root lists every component as BUILT / PARTIAL / STUB
-with one blunt sentence each, and loudly flags everything mocked.
+The original build record lists every component as BUILT / PARTIAL / STUB
+with one blunt sentence each, and loudly flags everything mocked. The original
+progress record remains available in Git history.
 
 ---
 

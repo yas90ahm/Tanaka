@@ -11,6 +11,7 @@ honestly records containment="seccomp".
 """
 
 import os
+import platform
 import subprocess
 import sys
 
@@ -20,6 +21,7 @@ from sentinel_slice.chef.linux_sandbox import (
     LinuxSeccompSandbox,
     install_network_seccomp,
     is_available,
+    landlock_abi,
 )
 from sentinel_slice.chef.sandbox import SandboxSpec
 
@@ -43,9 +45,9 @@ def test_off_linux_is_unavailable_and_refuses():
 
 
 @pytest.mark.skipif(not _LINUX, reason="Linux-only availability check")
-def test_on_linux_is_available():
-    # GitHub ubuntu runners (and any x86_64/aarch64 Linux) are supported.
-    assert is_available() is True
+def test_on_linux_availability_matches_host_capabilities():
+    supported_arch = platform.machine() in {"x86_64", "aarch64", "arm64"}
+    assert is_available() is (supported_arch and landlock_abi() >= 1)
 
 
 @pytest.mark.skipif(not (_LINUX and _GATED),

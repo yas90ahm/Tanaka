@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sentinel-slice"
 version = "0.15.0"
-description = "Sentinel Loop — governance vertical slice (six takeout layers, verifiable receipts)"
+description = "A prototype for checking agent actions before they run and recording signed receipts"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
 authors = [{ name = "Yasir Qureshi" }]
@@ -16,7 +16,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
-# Deps are deliberately limited to cryptography + pytest per CLAUDE.md non-negotiable #6.
+# Keep the runtime dependency surface small. Test tools belong in the dev extra.
 dependencies = [
     "cryptography>=42.0",
 ]
